@@ -1,8 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UsersService } from 'src/users/users.service';
-import * as bcrypt from 'bcrypt';
-
+import { UsersService } from '../users/users.service';
+import { User } from '../users/users.entity';
 
 @Injectable()
 export class AuthService {
@@ -11,20 +10,54 @@ export class AuthService {
     private jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string) {
+  async validateUser(email: string, password: string): Promise<User | null> {
     const user = await this.usersService.findByEmail(email);
     if (!user) return null;
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await this.usersService.validatePassword(user, password);
     if (!isMatch) return null;
+
+    if (!user.isActive) return null;
 
     return user;
   }
 
-  async login(user: any) {
-    const payload = { email: user.email, sub: user.id };
-    return {
-      access_token: this.jwtService.sign(payload),
+  async login(user: User) {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     };
+
+    console.log(process.env.JWT_SECRET)
+    return {
+      success: true,
+      data: {
+        user: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+        accessToken: this.jwtService.sign(payload),
+      },
+    };
+  }
+
+  async register(data: {
+    email: string;
+    password: string;
+    firstName?: string;
+    lastName?: string;
+    phoneNumber?: string;
+  }) {
+    const existingUser = await this.usersService.findByEmail(data.email);
+    if (existingUser) {
+      throw new UnauthorizedException('Email already exists');
+    }
+
+    const user = await this.usersService.create(data);
+    return this.login(user);
   }
 }
