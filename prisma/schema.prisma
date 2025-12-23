@@ -252,11 +252,11 @@ model Booking {
 
   // Journey details
   pickupAddress       String
-  pickupPostcode      String
+  pickupPostcode      String?   // Optional - not all addresses have postcodes
   pickupLat           Decimal   @db.Decimal(10, 8)
   pickupLng           Decimal   @db.Decimal(11, 8)
   dropoffAddress      String
-  dropoffPostcode     String
+  dropoffPostcode     String?   // Optional - not all addresses have postcodes
   dropoffLat          Decimal   @db.Decimal(10, 8)
   dropoffLng          Decimal   @db.Decimal(11, 8)
   pickupDatetime      DateTime
