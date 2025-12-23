@@ -31,8 +31,10 @@ DROP TYPE "JobStatus_old";
 ALTER TABLE "jobs" ALTER COLUMN "status" SET DEFAULT 'OPEN_FOR_BIDDING';
 COMMIT;
 
--- AlterEnum
-ALTER TYPE "NotificationStatus" ADD VALUE 'PENDING';
+-- AlterEnum - Add PENDING value (must be committed separately in PostgreSQL)
+ALTER TYPE "NotificationStatus" ADD VALUE IF NOT EXISTS 'PENDING';
+COMMIT;
+BEGIN;
 
 -- DropForeignKey
 ALTER TABLE "driver_details" DROP CONSTRAINT "driver_details_operatorId_fkey";
