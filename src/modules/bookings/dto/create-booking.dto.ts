@@ -3,11 +3,11 @@ import { z } from 'zod';
 // Base journey schema (shared between outbound and return)
 const JourneySchema = z.object({
   pickupAddress: z.string().min(1, 'Pickup address is required'),
-  pickupPostcode: z.string().min(1, 'Pickup postcode is required'),
+  pickupPostcode: z.string().optional(), // Optional - not all addresses have postcodes
   pickupLat: z.number(),
   pickupLng: z.number(),
   dropoffAddress: z.string().min(1, 'Dropoff address is required'),
-  dropoffPostcode: z.string().min(1, 'Dropoff postcode is required'),
+  dropoffPostcode: z.string().optional(), // Optional - not all addresses have postcodes
   dropoffLat: z.number(),
   dropoffLng: z.number(),
   pickupDatetime: z.string().datetime('Invalid datetime format'),
@@ -17,6 +17,10 @@ const JourneySchema = z.object({
   serviceType: z.enum(['AIRPORT_PICKUP', 'AIRPORT_DROPOFF', 'POINT_TO_POINT']),
   flightNumber: z.string().optional(),
   specialRequirements: z.string().optional(),
+  // Lead passenger contact details (may differ from booking user)
+  customerName: z.string().optional(),
+  customerEmail: z.string().email().optional(),
+  customerPhone: z.string().optional(),
   // Price for this leg (calculated from quote)
   customerPrice: z.number().positive('Price must be positive'),
 });

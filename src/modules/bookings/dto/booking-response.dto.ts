@@ -7,9 +7,9 @@ export const BookingResponseSchema = z.object({
   journeyType: z.enum(['ONE_WAY', 'OUTBOUND', 'RETURN']),
   status: z.string(),
   pickupAddress: z.string(),
-  pickupPostcode: z.string(),
+  pickupPostcode: z.string().nullable(), // Optional - not all addresses have postcodes
   dropoffAddress: z.string(),
-  dropoffPostcode: z.string(),
+  dropoffPostcode: z.string().nullable(), // Optional - not all addresses have postcodes
   pickupDatetime: z.string(),
   passengerCount: z.number(),
   luggageCount: z.number(),
