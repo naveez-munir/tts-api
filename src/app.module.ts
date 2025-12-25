@@ -5,6 +5,8 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { ConfigModule } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { BookingsModule } from './bookings/bookings.module';
+import { PricingModule } from './pricing/pricing.module';
 
 @Module({
   imports: [
@@ -19,10 +21,12 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       autoLoadEntities: true,
       synchronize: true,
     }),
-    UsersModule, // already includes UsersService
+    UsersModule,
     AuthModule,
+    BookingsModule,
+    PricingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
