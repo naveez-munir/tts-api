@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import { GoogleMapsService } from './google-maps.service.js';
 import type { DistanceResult } from './google-maps.service.js';
@@ -97,8 +97,6 @@ const DEFAULT_PRICING = {
 
 @Injectable()
 export class QuoteService {
-  private readonly logger = new Logger(QuoteService.name);
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly googleMapsService: GoogleMapsService,

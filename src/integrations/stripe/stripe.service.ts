@@ -124,7 +124,7 @@ export class StripeService {
   async refundPayment(
     paymentIntentId: string,
     amount?: number, // Optional partial refund amount in pence
-    reason?: string,
+    _reason?: string,
   ): Promise<RefundResult> {
     if (!this.isConfigured || !this.stripe) {
       return this.createMockRefund(paymentIntentId, amount);
