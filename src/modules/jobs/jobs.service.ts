@@ -155,6 +155,7 @@ export class JobsService {
 
   async findAvailableJobs(operatorPostcode: string): Promise<Job[]> {
     const now = new Date();
+    const postcodePrefix = operatorPostcode.substring(0, 3);
 
     return this.prisma.job.findMany({
       where: {
@@ -163,9 +164,18 @@ export class JobsService {
           gt: now,
         },
         booking: {
-          pickupPostcode: {
-            startsWith: operatorPostcode.substring(0, 3),
-          },
+          OR: [
+            // Match by postcode prefix if postcode exists
+            {
+              pickupPostcode: {
+                startsWith: postcodePrefix,
+              },
+            },
+            // Include jobs where pickup postcode is null (show to all operators)
+            {
+              pickupPostcode: null,
+            },
+          ],
         },
       },
       include: {
