@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const CreateBidSchema = z.object({
-  jobId: z.string().uuid('Invalid job ID'),
+  jobId: z.string().cuid('Invalid job ID'),
   bidAmount: z.string().regex(/^\d+(\.\d{1,2})?$/, 'Invalid bid amount format'),
   notes: z.string().optional(),
 });
