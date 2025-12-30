@@ -3,12 +3,14 @@ import {
   Post,
   Get,
   Patch,
+  Delete,
   Body,
   Param,
   UseGuards,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
+
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import { ZodValidationPipe } from '../../common/pipes/zod-validation.pipe.js';
@@ -62,6 +64,28 @@ export class OperatorsController {
     return {
       success: true,
       data: profile,
+    };
+  }
+
+  @Get('documents')
+  async getDocuments(@CurrentUser() user: any) {
+    const documents = await this.operatorsService.getDocuments(user.id);
+    return {
+      success: true,
+      data: documents,
+    };
+  }
+
+  @Delete('documents/:documentId')
+  @HttpCode(HttpStatus.OK)
+  async deleteDocument(
+    @CurrentUser() user: any,
+    @Param('documentId') documentId: string,
+  ) {
+    const result = await this.operatorsService.deleteDocument(user.id, documentId);
+    return {
+      success: true,
+      data: result,
     };
   }
 }

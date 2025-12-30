@@ -172,5 +172,60 @@ export class OperatorsService {
 
     return profile;
   }
+
+  /**
+   * Get all documents for an operator
+   */
+  async getDocuments(userId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException(`Operator profile not found for user ${userId}`);
+    }
+
+    return this.prisma.document.findMany({
+      where: { operatorId: profile.id },
+      orderBy: { uploadedAt: 'desc' },
+      select: {
+        id: true,
+        documentType: true,
+        fileName: true,
+        uploadedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Delete a document
+   */
+  async deleteDocument(userId: string, documentId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException(`Operator profile not found for user ${userId}`);
+    }
+
+    const document = await this.prisma.document.findUnique({
+      where: { id: documentId },
+    });
+
+    if (!document) {
+      throw new NotFoundException(`Document not found`);
+    }
+
+    if (document.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to delete this document');
+    }
+
+    await this.prisma.document.delete({
+      where: { id: documentId },
+    });
+
+    return { deleted: true, documentId };
+  }
 }
 
