@@ -16,11 +16,16 @@ import { StripeModule } from './integrations/stripe/stripe.module.js';
 import { SendGridModule } from './integrations/sendgrid/sendgrid.module.js';
 import { TwilioModule } from './integrations/twilio/twilio.module.js';
 import { NotificationsModule } from './integrations/notifications/notifications.module.js';
+import { QueueModule } from './queue/queue.module.js';
+import { BiddingQueueModule } from './queue/bidding-queue.module.js';
+import { S3Module } from './integrations/s3/s3.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     DatabaseModule,
+    QueueModule,
+    BiddingQueueModule,
     UsersModule,
     AuthModule,
     BookingsModule,
@@ -34,6 +39,7 @@ import { NotificationsModule } from './integrations/notifications/notifications.
     SendGridModule,
     TwilioModule,
     NotificationsModule,
+    S3Module,
   ],
   controllers: [AppController],
   providers: [AppService],
