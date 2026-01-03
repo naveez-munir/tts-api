@@ -1,26 +1,45 @@
 import { Module } from '@nestjs/common';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
-import { AuthModule } from './auth/auth.module';
-import { UsersModule } from './users/users.module';
 import { ConfigModule } from '@nestjs/config';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { AppController } from './app.controller.js';
+import { AppService } from './app.service.js';
+import { DatabaseModule } from './database/database.module.js';
+import { AuthModule } from './auth/auth.module.js';
+import { UsersModule } from './users/users.module.js';
+import { BookingsModule } from './modules/bookings/bookings.module.js';
+import { JobsModule } from './modules/jobs/jobs.module.js';
+import { BidsModule } from './modules/bids/bids.module.js';
+import { OperatorsModule } from './modules/operators/operators.module.js';
+import { PaymentsModule } from './modules/payments/payments.module.js';
+import { AdminModule } from './modules/admin/admin.module.js';
+import { GoogleMapsModule } from './integrations/google-maps/google-maps.module.js';
+import { StripeModule } from './integrations/stripe/stripe.module.js';
+import { SendGridModule } from './integrations/sendgrid/sendgrid.module.js';
+import { TwilioModule } from './integrations/twilio/twilio.module.js';
+import { NotificationsModule } from './integrations/notifications/notifications.module.js';
+import { QueueModule } from './queue/queue.module.js';
+import { BiddingQueueModule } from './queue/bidding-queue.module.js';
+import { S3Module } from './integrations/s3/s3.module.js';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: Number(process.env.DB_PORT),
-      username: process.env.DB_USER,
-      password: process.env.DB_PASS,
-      database: process.env.DB_NAME,
-      autoLoadEntities: true,
-      synchronize: true,
-    }),
-    UsersModule, // already includes UsersService
+    DatabaseModule,
+    QueueModule,
+    BiddingQueueModule,
+    UsersModule,
     AuthModule,
+    BookingsModule,
+    JobsModule,
+    BidsModule,
+    OperatorsModule,
+    PaymentsModule,
+    AdminModule,
+    GoogleMapsModule,
+    StripeModule,
+    SendGridModule,
+    TwilioModule,
+    NotificationsModule,
+    S3Module,
   ],
   controllers: [AppController],
   providers: [AppService],

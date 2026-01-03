@@ -1,28 +1,57 @@
 import { Injectable } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { User } from './users.entity';
 import * as bcrypt from 'bcrypt';
-
+import { PrismaService } from '../database/prisma.service.js';
+import type { User } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
-  constructor(
-    @InjectRepository(User)
-    private userRepo: Repository<User>,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async findByEmail(email: string) {
-    return this.userRepo.findOne({ where: { email } });
+  async findByEmail(email: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { email },
+    });
   }
 
-  async create(data: { email: string; password: string; name?: string }) {
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-    const user = this.userRepo.create({
-      ...data,
-      password: hashedPassword,
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
     });
+  }
 
-    return this.userRepo.save(user);
+  async create(data: {
+    email: string;
+    password: string;
+    firstName: string;
+    lastName: string;
+    role: 'CUSTOMER' | 'OPERATOR' | 'ADMIN';
+  }): Promise<User> {
+    const hashedPassword = await bcrypt.hash(data.password, 10);
+    return this.prisma.user.create({
+      data: {
+        ...data,
+        password: hashedPassword,
+      },
+    });
+  }
+
+  async findAll(): Promise<User[]> {
+    return this.prisma.user.findMany();
+  }
+
+  async update(
+    id: string,
+    data: Partial<User>,
+  ): Promise<User> {
+    return this.prisma.user.update({
+      where: { id },
+      data,
+    });
+  }
+
+  async delete(id: string): Promise<User> {
+    return this.prisma.user.delete({
+      where: { id },
+    });
   }
 }

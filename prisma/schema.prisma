@@ -1,0 +1,446 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum UserRole {
+  CUSTOMER
+  OPERATOR
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  PAID
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+enum JobStatus {
+  OPEN_FOR_BIDDING
+  BIDDING_CLOSED
+  NO_BIDS_RECEIVED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BidStatus {
+  PENDING
+  WON
+  LOST
+  WITHDRAWN
+}
+
+enum VehicleType {
+  SALOON
+  ESTATE
+  MPV
+  EXECUTIVE
+  MINIBUS
+}
+
+enum ServiceType {
+  AIRPORT_PICKUP
+  AIRPORT_DROPOFF
+  POINT_TO_POINT
+}
+
+enum JourneyType {
+  ONE_WAY
+  OUTBOUND
+  RETURN
+}
+
+enum BookingGroupStatus {
+  ACTIVE
+  PARTIALLY_CANCELLED
+  FULLY_CANCELLED
+  COMPLETED
+}
+
+enum DiscountType {
+  RETURN_JOURNEY
+  PROMOTIONAL
+}
+
+enum TransactionType {
+  CUSTOMER_PAYMENT
+  OPERATOR_PAYOUT
+  REFUND
+  PLATFORM_COMMISSION
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum DocumentType {
+  OPERATING_LICENSE
+  INSURANCE
+  OTHER
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  BOUNCED
+}
+
+enum NotificationType {
+  EMAIL
+  SMS
+}
+
+enum OperatorApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SUSPENDED
+}
+
+// ============================================================================
+// MODELS
+// ============================================================================
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  phoneNumber       String?
+  role              UserRole
+  isEmailVerified   Boolean   @default(false)
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  operatorProfile   OperatorProfile?
+  bookings          Booking[]
+  bookingGroups     BookingGroup[]
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model OperatorProfile {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  companyName         String
+  registrationNumber  String
+  vatNumber           String?
+  approvalStatus      OperatorApprovalStatus @default(PENDING)
+  reputationScore     Decimal   @default(5.0) @db.Decimal(3, 2)
+  totalJobs           Int       @default(0)
+  completedJobs       Int       @default(0)
+
+  // Bank details for payouts
+  bankAccountName     String?
+  bankAccountNumber   String?
+  bankSortCode        String?
+
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vehicles            Vehicle[]
+  documents           Document[]
+  serviceAreas        ServiceArea[]
+  bids                Bid[]
+  assignedJobs        Job[]     @relation("AssignedOperator")
+
+  @@index([approvalStatus])
+  @@index([userId])
+  @@map("operator_profiles")
+}
+
+model Vehicle {
+  id                String    @id @default(cuid())
+  operatorId        String
+  vehicleType       VehicleType
+  registrationPlate String
+  make              String
+  model             String
+  year              Int
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("vehicles")
+}
+
+model ServiceArea {
+  id                String    @id @default(cuid())
+  operatorId        String
+  postcode          String
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("service_areas")
+}
+
+model Document {
+  id                String    @id @default(cuid())
+  operatorId        String
+  documentType      DocumentType
+  fileUrl           String
+  fileName          String
+  uploadedAt        DateTime  @default(now())
+  expiresAt         DateTime?
+
+  // Relations
+  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+// Booking Group for return journeys (links outbound + return bookings)
+model BookingGroup {
+  id                String    @id @default(cuid())
+  groupReference    String    @unique  // TTS-GRP-XXXXXX
+  customerId        String
+  totalPrice        Decimal   @db.Decimal(10, 2)
+  discountType      DiscountType?
+  discountAmount    Decimal?  @db.Decimal(10, 2)
+  status            BookingGroupStatus @default(ACTIVE)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  customer          User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookings          Booking[]
+
+  @@map("booking_groups")
+}
+
+model Booking {
+  id                  String    @id @default(cuid())
+  customerId          String
+  bookingReference    String    @unique
+
+  // Journey type for return journey support
+  journeyType         JourneyType @default(ONE_WAY)
+  bookingGroupId      String?    // Null for one-way, set for return journeys
+  linkedBookingId     String?    @unique  // Links outbound <-> return
+
+  // Journey details
+  pickupAddress       String
+  pickupPostcode      String?   // Optional - not all addresses have postcodes
+  pickupLat           Decimal   @db.Decimal(10, 8)
+  pickupLng           Decimal   @db.Decimal(11, 8)
+  dropoffAddress      String
+  dropoffPostcode     String?   // Optional - not all addresses have postcodes
+  dropoffLat          Decimal   @db.Decimal(10, 8)
+  dropoffLng          Decimal   @db.Decimal(11, 8)
+  pickupDatetime      DateTime
+  passengerCount      Int
+  luggageCount        Int
+  vehicleType         VehicleType
+  serviceType         ServiceType
+  flightNumber        String?
+  specialRequirements String?
+
+  // Quote calculation data (audit trail)
+  distanceMiles       Decimal?  @db.Decimal(10, 2)
+  durationMinutes     Int?
+
+  // Lead passenger contact (may differ from booking user)
+  customerName        String?
+  customerEmail       String?
+  customerPhone       String?
+
+  // Airport-specific fields
+  terminal            String?
+  hasMeetAndGreet     Boolean   @default(false)
+
+  customerPrice       Decimal   @db.Decimal(10, 2)  // Price for THIS leg only
+  status              BookingStatus @default(PENDING_PAYMENT)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  customer            User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookingGroup        BookingGroup? @relation(fields: [bookingGroupId], references: [id], onDelete: SetNull)
+  linkedBooking       Booking?  @relation("LinkedBookings", fields: [linkedBookingId], references: [id])
+  pairedBooking       Booking?  @relation("LinkedBookings")
+  job                 Job?
+  transactions        Transaction[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([pickupDatetime])
+  @@index([bookingGroupId])
+  @@map("bookings")
+}
+
+model Job {
+  id                        String    @id @default(cuid())
+  bookingId                 String    @unique
+  status                    JobStatus @default(OPEN_FOR_BIDDING)
+
+  // Bidding window configuration
+  biddingWindowOpensAt      DateTime  @default(now())
+  biddingWindowClosesAt     DateTime
+  biddingWindowDurationHours Int      @default(24)
+
+  // Assignment details
+  assignedOperatorId        String?
+  winningBidId              String?   @unique
+
+  // Financial tracking
+  platformMargin            Decimal?  @db.Decimal(10, 2)  // Customer Price - Winning Bid
+
+  completedAt               DateTime?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  // Relations
+  booking                   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  assignedOperator          OperatorProfile? @relation("AssignedOperator", fields: [assignedOperatorId], references: [id])
+  winningBid                Bid?      @relation("WinningBid", fields: [winningBidId], references: [id])
+  bids                      Bid[]     @relation("JobBids")
+  driverDetails             DriverDetails?
+
+  @@index([status])
+  @@index([assignedOperatorId])
+  @@index([biddingWindowClosesAt])
+  @@map("jobs")
+}
+
+model Bid {
+  id                String    @id @default(cuid())
+  jobId             String
+  operatorId        String
+  bidAmount         Decimal   @db.Decimal(10, 2)
+  status            BidStatus @default(PENDING)
+  notes             String?   // Operator notes/comments on bid
+  submittedAt       DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  job               Job       @relation("JobBids", fields: [jobId], references: [id], onDelete: Cascade)
+  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  wonJob            Job?      @relation("WinningBid")
+
+  @@unique([jobId, operatorId])
+  @@index([operatorId])
+  @@index([status])
+  @@map("bids")
+}
+
+// Driver details assigned to a specific job (not operator-level)
+model DriverDetails {
+  id                  String    @id @default(cuid())
+  jobId               String    @unique
+  driverName          String
+  driverPhone         String
+  vehicleRegistration String
+  vehicleMake         String?
+  vehicleModel        String?
+  vehicleColor        String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  // Relations
+  job                 Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("driver_details")
+}
+
+model Transaction {
+  id                    String    @id @default(cuid())
+  bookingId             String
+  transactionType       TransactionType
+  amount                Decimal   @db.Decimal(10, 2)
+  currency              String    @default("GBP")
+  stripeTransactionId   String?
+  stripePaymentIntentId String?
+  status                TransactionStatus @default(PENDING)
+  description           String?
+  metadata              Json?
+  completedAt           DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  booking               Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([transactionType])
+  @@index([status])
+  @@map("transactions")
+}
+
+model PricingRule {
+  id                String    @id @default(cuid())
+  ruleType          String    // BASE_FARE, PER_MILE, TIME_SURCHARGE, HOLIDAY_SURCHARGE, AIRPORT_FEE, etc.
+  vehicleType       VehicleType?
+  baseValue         Decimal   @db.Decimal(10, 2)
+  percentage        Decimal?  @db.Decimal(5, 2)  // For percentage-based rules
+  startTime         String?   // For time-based surcharges (HH:mm format)
+  endTime           String?   // For time-based surcharges (HH:mm format)
+  startDate         DateTime? // For holiday surcharges
+  endDate           DateTime? // For holiday surcharges
+  airportCode       String?   // For airport-specific fees
+  description       String?
+  isActive          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@index([ruleType])
+  @@index([isActive])
+  @@map("pricing_rules")
+}
+
+model Notification {
+  id                String    @id @default(cuid())
+  userId            String
+  type              NotificationType @default(EMAIL)
+  subject           String
+  message           String
+  recipientEmail    String?
+  recipientPhone    String?
+  templateId        String?
+  metadata          Json?
+  status            NotificationStatus @default(PENDING)
+  sentAt            DateTime?
+  failedAt          DateTime?
+  errorMessage      String?
+  createdAt         DateTime  @default(now())
+
+  // Relations
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@map("notifications")
+}
+
