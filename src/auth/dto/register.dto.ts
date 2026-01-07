@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { UserRoleSchema } from '../../common/enums/index.js';
 
 export const RegisterSchema = z.object({
   email: z.string().email('Invalid email format'),
@@ -10,7 +11,8 @@ export const RegisterSchema = z.object({
     .regex(/[0-9]/, 'Must contain number'),
   firstName: z.string().min(1, 'First name is required'),
   lastName: z.string().min(1, 'Last name is required'),
-  role: z.enum(['CUSTOMER', 'OPERATOR', 'ADMIN']).default('CUSTOMER'),
+  phoneNumber: z.string().optional(),
+  role: UserRoleSchema.default('CUSTOMER'),
 });
 
 export type RegisterDto = z.infer<typeof RegisterSchema>;
