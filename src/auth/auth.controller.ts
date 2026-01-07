@@ -4,6 +4,7 @@ import {
   Post,
   BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { UsersService } from '../users/users.service.js';
 import { AuthService } from './auth.service.js';
 import { RegisterSchema } from './dto/register.dto.js';
@@ -20,6 +21,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per 60 seconds
   async register(
     @Body(new ZodValidationPipe(RegisterSchema)) dto: RegisterDto,
   ) {
@@ -40,6 +42,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per 60 seconds
   async login(
     @Body(new ZodValidationPipe(LoginSchema)) dto: LoginDto,
   ) {
