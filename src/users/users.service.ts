@@ -24,6 +24,7 @@ export class UsersService {
     password: string;
     firstName: string;
     lastName: string;
+    phoneNumber?: string;
     role: 'CUSTOMER' | 'OPERATOR' | 'ADMIN';
   }): Promise<User> {
     const hashedPassword = await bcrypt.hash(data.password, 10);
