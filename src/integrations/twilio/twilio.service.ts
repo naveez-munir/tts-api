@@ -130,6 +130,47 @@ export class TwilioService {
   }
 
   /**
+   * Send job offer SMS to operator (requires acceptance)
+   */
+  async sendJobOfferSms(
+    phone: string,
+    bookingReference: string,
+    deadline: string,
+  ): Promise<boolean> {
+    const message = `ACTION REQUIRED: You have the lowest bid for ${bookingReference}. Please confirm acceptance by ${deadline} or the job will be offered to another operator.`;
+
+    return this.sendSms({ to: phone, message });
+  }
+
+  /**
+   * Send booking cancellation SMS to customer
+   */
+  async sendBookingCancellationSms(
+    phone: string,
+    data: { bookingReference: string; refundAmount: string; refundPercent: number },
+  ): Promise<boolean> {
+    const refundMessage = data.refundPercent > 0
+      ? `Refund of ${data.refundAmount} (${data.refundPercent}%) will be processed within 5-10 days.`
+      : 'No refund applicable based on cancellation policy.';
+
+    const message = `Your booking ${data.bookingReference} has been cancelled. ${refundMessage}`;
+
+    return this.sendSms({ to: phone, message });
+  }
+
+  /**
+   * Send job cancellation SMS to operator
+   */
+  async sendJobCancellationSms(
+    phone: string,
+    bookingReference: string,
+  ): Promise<boolean> {
+    const message = `Job ${bookingReference} has been cancelled by the customer. No action required.`;
+
+    return this.sendSms({ to: phone, message });
+  }
+
+  /**
    * Format phone number to UK international format
    */
   private formatUkPhoneNumber(phone: string): string {
