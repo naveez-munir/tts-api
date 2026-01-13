@@ -158,7 +158,7 @@ export class StripeService {
    * Verify webhook signature
    */
   constructWebhookEvent(
-    payload: Buffer,
+    payload: string | Buffer,
     signature: string,
   ): Stripe.Event | null {
     if (!this.isConfigured || !this.stripe) {
