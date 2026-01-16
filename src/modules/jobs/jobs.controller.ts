@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Body,
   NotFoundException,
+  Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
@@ -17,13 +18,19 @@ import { CreateJobSchema } from './dto/create-job.dto.js';
 import type { CreateJobDto } from './dto/create-job.dto.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { JobStatus } from '@prisma/client';
+import { SystemSettingsService } from '../system-settings/system-settings.service.js';
+import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 
 @Controller('jobs')
 @UseGuards(JwtAuthGuard)
 export class JobsController {
+  private readonly logger = new Logger(JobsController.name);
+
   constructor(
     private readonly jobsService: JobsService,
     private readonly prisma: PrismaService,
+    private readonly systemSettingsService: SystemSettingsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   @Post()
@@ -61,40 +68,71 @@ export class JobsController {
       throw new NotFoundException('Operator profile not found');
     }
 
-    // Get all postcodes from service areas
-    const postcodes = profile.serviceAreas.map((sa) => sa.postcode);
+    // Get postcode filtering configuration
+    const enablePostcodeFiltering = await this.systemSettingsService.getSettingOrDefault(
+      'ENABLE_POSTCODE_FILTERING',
+      true,
+    );
 
-    if (postcodes.length === 0) {
-      return {
-        success: true,
-        data: [],
-        meta: { total: 0 },
-      };
-    }
-
-    // Build OR conditions for each postcode prefix
     const now = new Date();
-    const jobs = await this.prisma.job.findMany({
-      where: {
-        status: JobStatus.OPEN_FOR_BIDDING,
-        biddingWindowClosesAt: { gt: now },
-        booking: {
-          OR: postcodes.map((postcode) => ({
-            pickupPostcode: {
-              startsWith: postcode.substring(0, 3).toUpperCase(),
-            },
-          })),
+    let jobs;
+
+    if (!enablePostcodeFiltering) {
+      // Postcode filtering disabled - show ALL open jobs to this operator
+      jobs = await this.prisma.job.findMany({
+        where: {
+          status: JobStatus.OPEN_FOR_BIDDING,
+          biddingWindowClosesAt: { gt: now },
         },
-      },
-      include: {
-        booking: true,
-        bids: {
-          where: { operatorId: profile.id },
-          select: { id: true, bidAmount: true, status: true },
+        include: {
+          booking: true,
+          bids: {
+            where: { operatorId: profile.id },
+            select: { id: true, bidAmount: true, status: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      });
+    } else {
+      // Postcode filtering enabled - filter by service areas
+      const postcodes = profile.serviceAreas.map((sa) => sa.postcode);
+
+      if (postcodes.length === 0) {
+        return {
+          success: true,
+          data: [],
+          meta: { total: 0 },
+        };
+      }
+
+      // Build OR conditions: match by postcode prefix OR jobs with null postcode
+      const postcodeConditions: any[] = postcodes.map((postcode) => ({
+        pickupPostcode: {
+          startsWith: postcode.substring(0, 3).toUpperCase(),
+        },
+      }));
+
+      // Also include jobs where pickupPostcode is null (show to all operators)
+      postcodeConditions.push({ pickupPostcode: null });
+
+      jobs = await this.prisma.job.findMany({
+        where: {
+          status: JobStatus.OPEN_FOR_BIDDING,
+          biddingWindowClosesAt: { gt: now },
+          booking: {
+            OR: postcodeConditions,
+          },
+        },
+        include: {
+          booking: true,
+          bids: {
+            where: { operatorId: profile.id },
+            select: { id: true, bidAmount: true, status: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
     return {
       success: true,
@@ -190,6 +228,8 @@ export class JobsController {
       vehicleMake?: string;
       vehicleModel?: string;
       vehicleColor?: string;
+      taxiLicenceNumber?: string;
+      issuingCouncil?: string;
     },
   ) {
     const profile = await this.prisma.operatorProfile.findUnique({
@@ -202,6 +242,7 @@ export class JobsController {
 
     const job = await this.prisma.job.findUnique({
       where: { id },
+      include: { booking: true },
     });
 
     if (!job) {
@@ -223,6 +264,8 @@ export class JobsController {
         vehicleMake: driverDetails.vehicleMake,
         vehicleModel: driverDetails.vehicleModel,
         vehicleColor: driverDetails.vehicleColor,
+        taxiLicenceNumber: driverDetails.taxiLicenceNumber,
+        issuingCouncil: driverDetails.issuingCouncil,
       },
       update: {
         driverName: driverDetails.driverName,
@@ -231,6 +274,8 @@ export class JobsController {
         vehicleMake: driverDetails.vehicleMake,
         vehicleModel: driverDetails.vehicleModel,
         vehicleColor: driverDetails.vehicleColor,
+        taxiLicenceNumber: driverDetails.taxiLicenceNumber,
+        issuingCouncil: driverDetails.issuingCouncil,
       },
     });
 
@@ -240,6 +285,25 @@ export class JobsController {
       data: { status: JobStatus.IN_PROGRESS },
       include: { booking: true, driverDetails: true },
     });
+
+    // Send driver assignment notification to customer
+    try {
+      await this.notificationsService.sendDriverAssignment({
+        customerId: job.booking.customerId,
+        bookingReference: job.booking.bookingReference,
+        driverName: driverDetails.driverName,
+        driverPhone: driverDetails.driverPhone,
+        vehicleRegistration: driverDetails.vehicleRegistration,
+        pickupDatetime: job.booking.pickupDatetime,
+        pickupAddress: job.booking.pickupAddress,
+        journeyType: job.booking.journeyType as 'ONE_WAY' | 'OUTBOUND' | 'RETURN',
+        groupReference: job.booking.bookingGroupId || undefined,
+      });
+      this.logger.log(`Driver assignment notification sent for booking ${job.booking.bookingReference}`);
+    } catch (error) {
+      // Log error but don't fail the request - driver details were saved successfully
+      this.logger.error(`Failed to send driver assignment notification for booking ${job.booking.bookingReference}:`, error);
+    }
 
     return {
       success: true,
