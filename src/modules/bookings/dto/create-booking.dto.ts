@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VehicleTypeSchema, ServiceTypeSchema } from '../../../common/enums/index.js';
 
 // Base journey schema (shared between outbound and return)
 const JourneySchema = z.object({
@@ -13,10 +14,20 @@ const JourneySchema = z.object({
   pickupDatetime: z.string().datetime('Invalid datetime format'),
   passengerCount: z.number().min(1).max(16),
   luggageCount: z.number().min(0),
-  vehicleType: z.enum(['SALOON', 'ESTATE', 'MPV', 'EXECUTIVE', 'MINIBUS']),
-  serviceType: z.enum(['AIRPORT_PICKUP', 'AIRPORT_DROPOFF', 'POINT_TO_POINT']),
+  vehicleType: VehicleTypeSchema,
+  serviceType: ServiceTypeSchema,
   flightNumber: z.string().optional(),
   specialRequirements: z.string().optional(),
+
+  // Airport-specific fields
+  terminal: z.string().optional(),
+  hasMeetAndGreet: z.boolean().optional().default(false),
+
+  // Service options
+  childSeats: z.number().int().min(0).optional().default(0),
+  boosterSeats: z.number().int().min(0).optional().default(0),
+  hasPickAndDrop: z.boolean().optional().default(false),
+
   // Lead passenger contact details (may differ from booking user)
   customerName: z.string().optional(),
   customerEmail: z.string().email().optional(),
