@@ -29,6 +29,13 @@ import { ManualJobAssignmentSchema } from './dto/job-assignment.dto.js';
 import type { ManualJobAssignmentDto } from './dto/job-assignment.dto.js';
 import { ReportsQuerySchema } from './dto/reports-query.dto.js';
 import type { ReportsQueryDto } from './dto/reports-query.dto.js';
+import { UpdateSystemSettingSchema, BulkUpdateSettingsSchema } from './dto/system-settings.dto.js';
+import type { UpdateSystemSettingDto, BulkUpdateSettingsDto } from './dto/system-settings.dto.js';
+import { ListCustomersQuerySchema, UpdateCustomerStatusSchema, CustomerTransactionsQuerySchema } from './dto/customer-management.dto.js';
+import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto } from './dto/customer-management.dto.js';
+import { UpdateVehicleCapacitySchema } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
+import type { UpdateVehicleCapacityDto } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
+import { VehicleType } from '@prisma/client';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -65,6 +72,81 @@ export class AdminController {
   ) {
     const data = await this.adminService.updateOperatorApproval(id, dto);
     return { success: true, data };
+  }
+
+  /**
+   * GET /admin/operators/:id/documents
+   * Get all documents for a specific operator (with presigned download URLs)
+   */
+  @Get('operators/:id/documents')
+  async getOperatorDocuments(@Param('id') id: string) {
+    const documents = await this.adminService.getOperatorDocuments(id);
+    return { success: true, data: documents };
+  }
+
+  // =========================================================================
+  // CUSTOMER MANAGEMENT
+  // =========================================================================
+
+  /**
+   * GET /admin/customers
+   * List all customers with search, filters, and pagination
+   */
+  @Get('customers')
+  async listCustomers(
+    @Query(new ZodValidationPipe(ListCustomersQuerySchema)) query: ListCustomersQueryDto,
+  ) {
+    const result = await this.adminService.listCustomers(query);
+    return { success: true, data: { customers: result.customers }, meta: result.meta };
+  }
+
+  /**
+   * GET /admin/customers/:id
+   * Get individual customer details with booking statistics
+   */
+  @Get('customers/:id')
+  async getCustomerDetails(@Param('id') id: string) {
+    const data = await this.adminService.getCustomerDetails(id);
+    return { success: true, data };
+  }
+
+  /**
+   * PATCH /admin/customers/:id/status
+   * Update customer account status (activate/deactivate)
+   */
+  @Patch('customers/:id/status')
+  async updateCustomerStatus(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateCustomerStatusSchema)) dto: UpdateCustomerStatusDto,
+  ) {
+    const data = await this.adminService.updateCustomerStatus(id, dto);
+    return { success: true, data };
+  }
+
+  /**
+   * GET /admin/customers/:id/bookings
+   * Get customer booking history with filters
+   */
+  @Get('customers/:id/bookings')
+  async getCustomerBookings(
+    @Param('id') id: string,
+    @Query(new ZodValidationPipe(ListBookingsQuerySchema)) query: ListBookingsQueryDto,
+  ) {
+    const result = await this.adminService.getCustomerBookings(id, query);
+    return { success: true, data: { bookings: result.bookings }, meta: result.meta };
+  }
+
+  /**
+   * GET /admin/customers/:id/transactions
+   * Get customer transaction history
+   */
+  @Get('customers/:id/transactions')
+  async getCustomerTransactions(
+    @Param('id') id: string,
+    @Query(new ZodValidationPipe(CustomerTransactionsQuerySchema)) query: CustomerTransactionsQueryDto,
+  ) {
+    const result = await this.adminService.getCustomerTransactions(id, query);
+    return { success: true, data: { transactions: result.transactions, summary: result.summary }, meta: result.meta };
   }
 
   // =========================================================================
@@ -171,6 +253,7 @@ export class AdminController {
   /**
    * POST /admin/jobs/:jobId/reopen-bidding
    * Reopen bidding for a job that had no bids
+   * Query param 'hours' is optional - defaults to REOPEN_BIDDING_DEFAULT_HOURS from SystemSettings
    */
   @Post('jobs/:jobId/reopen-bidding')
   @HttpCode(HttpStatus.OK)
@@ -178,7 +261,7 @@ export class AdminController {
     @Param('jobId') jobId: string,
     @Query('hours') hours?: string,
   ) {
-    const biddingHours = hours ? parseInt(hours, 10) : 24;
+    const biddingHours = hours ? parseInt(hours, 10) : undefined;
     const data = await this.adminService.reopenBidding(jobId, biddingHours);
     return { success: true, data };
   }
@@ -234,6 +317,66 @@ export class AdminController {
     @Query(new ZodValidationPipe(ReportsQuerySchema)) query: ReportsQueryDto,
   ) {
     const data = await this.adminService.getPayoutsReport(query);
+    return { success: true, data };
+  }
+
+  // =========================================================================
+  // SYSTEM SETTINGS MANAGEMENT
+  // =========================================================================
+
+  @Get('system-settings')
+  async getAllSystemSettings() {
+    const data = await this.adminService.getAllSystemSettings();
+    return { success: true, data };
+  }
+
+  @Get('system-settings/category/:category')
+  async getSystemSettingsByCategory(@Param('category') category: string) {
+    const data = await this.adminService.getSystemSettingsByCategory(category);
+    return { success: true, data };
+  }
+
+  @Patch('system-settings/:key')
+  async updateSystemSetting(
+    @Param('key') key: string,
+    @Body(new ZodValidationPipe(UpdateSystemSettingSchema)) dto: UpdateSystemSettingDto,
+  ) {
+    await this.adminService.updateSystemSetting(key, dto.value);
+    return { success: true, message: 'System setting updated successfully' };
+  }
+
+  @Patch('system-settings')
+  async bulkUpdateSystemSettings(
+    @Body(new ZodValidationPipe(BulkUpdateSettingsSchema)) dto: BulkUpdateSettingsDto,
+  ) {
+    await this.adminService.bulkUpdateSystemSettings(dto.updates);
+    return { success: true, message: 'System settings updated successfully' };
+  }
+
+  // =========================================================================
+  // VEHICLE CAPACITY MANAGEMENT
+  // =========================================================================
+
+  /**
+   * GET /admin/vehicle-capacities
+   * List all vehicle capacities (including inactive)
+   */
+  @Get('vehicle-capacities')
+  async listVehicleCapacities() {
+    const data = await this.adminService.listVehicleCapacities();
+    return { success: true, data };
+  }
+
+  /**
+   * PATCH /admin/vehicle-capacities/:vehicleType
+   * Update vehicle capacity configuration
+   */
+  @Patch('vehicle-capacities/:vehicleType')
+  async updateVehicleCapacity(
+    @Param('vehicleType') vehicleType: VehicleType,
+    @Body(new ZodValidationPipe(UpdateVehicleCapacitySchema)) dto: UpdateVehicleCapacityDto,
+  ) {
+    const data = await this.adminService.updateVehicleCapacity(vehicleType, dto);
     return { success: true, data };
   }
 }
