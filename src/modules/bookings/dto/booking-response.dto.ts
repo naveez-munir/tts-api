@@ -17,10 +17,23 @@ export const BookingResponseSchema = z.object({
   serviceType: z.string(),
   flightNumber: z.string().nullable(),
   specialRequirements: z.string().nullable(),
+  // Airport-specific fields
+  terminal: z.string().nullable(),
+  hasMeetAndGreet: z.boolean(),
+  // Service options
+  childSeats: z.number(),
+  boosterSeats: z.number(),
+  hasPickAndDrop: z.boolean(),
+  // Pricing and linking
   customerPrice: z.number(),
   linkedBookingId: z.string().nullable(),
   bookingGroupId: z.string().nullable(),
   createdAt: z.string(),
+  // Customer data (for admin/operator views)
+  customerId: z.string().optional(),
+  customerName: z.string().nullable().optional(),
+  customerEmail: z.string().nullable().optional(),
+  customerPhone: z.string().nullable().optional(),
 });
 
 export type BookingResponse = z.infer<typeof BookingResponseSchema>;

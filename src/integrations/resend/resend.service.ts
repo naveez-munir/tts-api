@@ -1,14 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import * as sgMail from '@sendgrid/mail';
+import { Resend } from 'resend';
 
 export interface EmailParams {
   to: string;
   subject: string;
   text?: string;
   html?: string;
-  templateId?: string;
-  dynamicTemplateData?: Record<string, any>;
 }
 
 export interface BookingConfirmationData {
@@ -51,23 +49,53 @@ export interface BidWonData {
   bidAmount: string;
 }
 
+export interface JobOfferData {
+  operatorName: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: string;
+  bidAmount: string;
+  acceptanceDeadline: string;
+}
+
+export interface BookingCancellationData {
+  customerName: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: string;
+  refundAmount: string;
+  refundPercent: number;
+  cancellationReason?: string;
+}
+
+export interface OperatorJobCancellationData {
+  operatorName: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: string;
+}
+
 @Injectable()
-export class SendGridService {
-  private readonly logger = new Logger(SendGridService.name);
+export class ResendService {
+  private readonly logger = new Logger(ResendService.name);
+  private readonly resend: Resend | null = null;
   private readonly isConfigured: boolean;
   private readonly fromEmail: string;
 
   constructor(private readonly configService: ConfigService) {
-    const apiKey = this.configService.get<string>('SENDGRID_API_KEY');
+    const apiKey = this.configService.get<string>('RESEND_API_KEY');
     this.fromEmail = this.configService.get<string>('FROM_EMAIL') || 'noreply@airporttransfer.com';
 
     if (apiKey && !apiKey.includes('your_')) {
-      sgMail.setApiKey(apiKey);
+      this.resend = new Resend(apiKey);
       this.isConfigured = true;
-      this.logger.log('SendGrid configured successfully');
+      this.logger.log('Resend configured successfully');
     } else {
       this.isConfigured = false;
-      this.logger.warn('SendGrid not configured - emails will be logged only');
+      this.logger.warn('Resend not configured - emails will be logged only');
     }
   }
 
@@ -75,20 +103,17 @@ export class SendGridService {
    * Send a generic email
    */
   async sendEmail(params: EmailParams): Promise<boolean> {
-    if (!this.isConfigured) {
+    if (!this.isConfigured || !this.resend) {
       this.logger.log(`[MOCK EMAIL] To: ${params.to}, Subject: ${params.subject}`);
       return true;
     }
 
     try {
-      await sgMail.send({
-        to: params.to,
+      await this.resend.emails.send({
         from: this.fromEmail,
+        to: params.to,
         subject: params.subject,
-        text: params.text || '',
-        html: params.html || '',
-        ...(params.templateId && { templateId: params.templateId }),
-        ...(params.dynamicTemplateData && { dynamicTemplateData: params.dynamicTemplateData }),
+        html: params.html || params.text || '',
       });
       this.logger.log(`Email sent to ${params.to}`);
       return true;
@@ -158,6 +183,54 @@ export class SendGridService {
     return this.sendEmail({
       to: email,
       subject: `Congratulations! You Won Booking ${data.bookingReference}`,
+      html,
+    });
+  }
+
+  /**
+   * Send job offer notification to operator (requires acceptance)
+   */
+  async sendJobOfferNotification(
+    email: string,
+    data: JobOfferData,
+  ): Promise<boolean> {
+    const html = this.getJobOfferHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: `Action Required: Confirm Job ${data.bookingReference}`,
+      html,
+    });
+  }
+
+  /**
+   * Send booking cancellation notification to customer
+   */
+  async sendBookingCancellation(
+    email: string,
+    data: BookingCancellationData,
+  ): Promise<boolean> {
+    const html = this.getBookingCancellationHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: `Booking Cancelled - ${data.bookingReference}`,
+      html,
+    });
+  }
+
+  /**
+   * Send job cancellation notification to operator
+   */
+  async sendOperatorJobCancellation(
+    email: string,
+    data: OperatorJobCancellationData,
+  ): Promise<boolean> {
+    const html = this.getOperatorJobCancellationHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: `Job Cancelled - ${data.bookingReference}`,
       html,
     });
   }
@@ -238,5 +311,75 @@ export class SendGridService {
       </div>
     `;
   }
-}
 
+  private getJobOfferHtml(data: JobOfferData): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #f0ad4e;">⏰ Action Required: Confirm Job</h1>
+        <p>Hello ${data.operatorName},</p>
+        <p>Your bid was the lowest! Please confirm acceptance of this job by quoting the booking reference:</p>
+        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #ffc107;">
+          <p><strong>Booking Reference:</strong> <span style="font-size: 1.2em; font-weight: bold;">${data.bookingReference}</span></p>
+          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
+          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
+          <p><strong>Date & Time:</strong> ${data.pickupDatetime}</p>
+          <p><strong>Your Bid:</strong> ${data.bidAmount}</p>
+        </div>
+        <div style="background: #dc3545; color: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <p style="margin: 0;"><strong>⚠️ Deadline to Accept:</strong> ${data.acceptanceDeadline}</p>
+          <p style="margin: 5px 0 0 0; font-size: 0.9em;">If you do not confirm by this time, the job will be offered to another operator.</p>
+        </div>
+        <p>Log in now to confirm acceptance by quoting the booking reference number.</p>
+      </div>
+    `;
+  }
+
+  private getBookingCancellationHtml(data: BookingCancellationData): string {
+    const refundMessage = data.refundPercent > 0
+      ? `<p style="color: #28a745;"><strong>Refund Amount:</strong> ${data.refundAmount} (${data.refundPercent}% of booking value)</p>`
+      : `<p style="color: #dc3545;"><strong>Refund:</strong> No refund applicable based on cancellation policy</p>`;
+
+    const reasonMessage = data.cancellationReason
+      ? `<p><strong>Reason:</strong> ${data.cancellationReason}</p>`
+      : '';
+
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #dc3545;">Booking Cancelled</h1>
+        <p>Dear ${data.customerName},</p>
+        <p>Your booking has been cancelled. Here are the details:</p>
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
+          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
+          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
+          <p><strong>Original Date & Time:</strong> ${data.pickupDatetime}</p>
+          ${reasonMessage}
+        </div>
+        <div style="background: #e9ecef; padding: 15px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">Refund Information</h3>
+          ${refundMessage}
+          <p style="font-size: 0.9em; color: #666;">Refunds are processed within 5-10 business days.</p>
+        </div>
+        <p>If you have any questions, please contact our support team.</p>
+      </div>
+    `;
+  }
+
+  private getOperatorJobCancellationHtml(data: OperatorJobCancellationData): string {
+    return `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h1 style="color: #dc3545;">Job Cancelled</h1>
+        <p>Hello ${data.operatorName},</p>
+        <p>Unfortunately, the following job has been cancelled by the customer:</p>
+        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
+          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
+          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
+          <p><strong>Original Date & Time:</strong> ${data.pickupDatetime}</p>
+        </div>
+        <p>No further action is required from you for this booking.</p>
+        <p>Thank you for your understanding.</p>
+      </div>
+    `;
+  }
+}

@@ -17,8 +17,8 @@ export class ZodValidationPipe implements PipeTransform {
         success: false,
         error: {
           code: 'VALIDATION_ERROR',
-          message: 'Validation failed',
-          details: error.errors,
+          message: error.issues[0].message,
+          details: error.issues,
         },
       });
     }

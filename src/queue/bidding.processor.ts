@@ -1,11 +1,13 @@
 import { Processor, WorkerHost } from '@nestjs/bullmq';
 import { Logger } from '@nestjs/common';
-import { Job } from 'bullmq';
+import { Job, Queue } from 'bullmq';
+import { InjectQueue } from '@nestjs/bullmq';
 import { PrismaService } from '../database/prisma.service.js';
 import { NotificationsService } from '../integrations/notifications/notifications.service.js';
+import { SystemSettingsService } from '../modules/system-settings/system-settings.service.js';
 import { JobStatus, BidStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
-import { BIDDING_QUEUE } from './queue.module.js';
+import { BIDDING_QUEUE, ACCEPTANCE_QUEUE } from './queue.module.js';
 
 export interface CloseBiddingJobData {
   jobId: string;
@@ -18,6 +20,8 @@ export class BiddingProcessor extends WorkerHost {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
+    private readonly systemSettingsService: SystemSettingsService,
+    @InjectQueue(ACCEPTANCE_QUEUE) private readonly acceptanceQueue: Queue,
   ) {
     super();
   }
@@ -72,61 +76,79 @@ export class BiddingProcessor extends WorkerHost {
         data: { status: JobStatus.NO_BIDS_RECEIVED },
       });
       this.logger.warn(`Job ${jobId} closed with no bids - escalating to admin`);
+
+      // Send escalation notification to admin
+      await this.notificationsService.sendJobEscalationToAdmin({
+        jobId,
+        bookingReference: jobRecord.booking.bookingReference,
+        pickupAddress: jobRecord.booking.pickupAddress,
+        dropoffAddress: jobRecord.booking.dropoffAddress,
+        pickupDatetime: jobRecord.booking.pickupDatetime,
+        vehicleType: jobRecord.booking.vehicleType,
+        customerPrice: jobRecord.booking.customerPrice.toString(),
+        reason: 'NO_BIDS_RECEIVED',
+      });
+
       return;
     }
 
-    // Get lowest bid (winner)
-    const winningBid = jobRecord.bids[0];
-    const customerPrice = new Decimal(jobRecord.booking.customerPrice.toString());
-    const winningBidAmount = new Decimal(winningBid.bidAmount.toString());
-    const platformMargin = customerPrice.minus(winningBidAmount);
+    // Get lowest bid to offer first
+    const lowestBid = jobRecord.bids[0];
+    const winningBidAmount = new Decimal(lowestBid.bidAmount.toString());
 
-    // Use transaction to ensure atomicity
+    // Get acceptance window duration from settings
+    const acceptanceMinutes = await this.systemSettingsService.getSettingOrDefault(
+      'ACCEPTANCE_WINDOW_MINUTES',
+      30,
+    );
+
+    const now = new Date();
+    const acceptanceDeadline = new Date(now.getTime() + acceptanceMinutes * 60 * 1000);
+
+    // Use transaction to update job and bid status
     await this.prisma.$transaction([
-      // Update job with winner
+      // Update job to PENDING_ACCEPTANCE (not directly ASSIGNED)
       this.prisma.job.update({
         where: { id: jobId },
         data: {
-          status: JobStatus.ASSIGNED,
-          assignedOperatorId: winningBid.operatorId,
-          winningBidId: winningBid.id,
-          platformMargin: platformMargin,
+          status: JobStatus.PENDING_ACCEPTANCE,
+          currentOfferedBidId: lowestBid.id,
+          acceptanceWindowOpensAt: now,
+          acceptanceWindowClosesAt: acceptanceDeadline,
+          acceptanceAttemptCount: 1,
         },
       }),
-      // Mark winning bid as WON
+      // Mark lowest bid as OFFERED (not WON yet)
       this.prisma.bid.update({
-        where: { id: winningBid.id },
-        data: { status: BidStatus.WON },
-      }),
-      // Mark all other bids as LOST
-      this.prisma.bid.updateMany({
-        where: {
-          jobId,
-          id: { not: winningBid.id },
-          status: BidStatus.PENDING,
+        where: { id: lowestBid.id },
+        data: {
+          status: BidStatus.OFFERED,
+          offeredAt: now,
         },
-        data: { status: BidStatus.LOST },
-      }),
-      // Update booking status
-      this.prisma.booking.update({
-        where: { id: jobRecord.bookingId },
-        data: { status: 'ASSIGNED' },
       }),
     ]);
 
     this.logger.log(
-      `Job ${jobId} assigned to operator ${winningBid.operatorId}. ` +
-      `Winning bid: £${winningBidAmount}, Margin: £${platformMargin}`,
+      `Job ${jobId} offered to operator ${lowestBid.operatorId}. ` +
+      `Bid amount: £${winningBidAmount}, Deadline: ${acceptanceDeadline.toISOString()}`,
     );
 
-    // Send notification to winning operator
-    await this.notificationsService.sendBidWonNotification({
-      operatorId: winningBid.operatorId,
+    // Schedule acceptance timeout job
+    await this.acceptanceQueue.add(
+      'acceptance-timeout',
+      { jobId, bidId: lowestBid.id, attemptNumber: 1 },
+      { delay: acceptanceMinutes * 60 * 1000 },
+    );
+
+    // Send notification to operator requesting acceptance
+    await this.notificationsService.sendJobOfferNotification({
+      operatorId: lowestBid.operatorId,
       bookingReference: jobRecord.booking.bookingReference,
       pickupAddress: jobRecord.booking.pickupAddress,
       dropoffAddress: jobRecord.booking.dropoffAddress,
       pickupDatetime: jobRecord.booking.pickupDatetime,
-      bidAmount: winningBidAmount.toString(),
+      bidAmount: `£${winningBidAmount.toFixed(2)}`,
+      acceptanceDeadline,
     });
   }
 }

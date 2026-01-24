@@ -5,7 +5,6 @@ import {
   Body,
   Param,
   UseGuards,
-  UsePipes,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -33,18 +32,22 @@ export class S3Controller {
 
   @Post('presigned-url')
   @Roles(UserRole.OPERATOR)
-  @UsePipes(new ZodValidationPipe(GenerateUploadUrlSchema))
   async generateUploadUrl(
     @CurrentUser() user: { id: string; operatorProfile?: { id: string } },
-    @Body() dto: GenerateUploadUrlDto,
+    @Body(new ZodValidationPipe(GenerateUploadUrlSchema)) dto: GenerateUploadUrlDto,
   ) {
-    const operatorId = user.operatorProfile?.id;
-    if (!operatorId) {
+    // Fetch operator profile
+    const operatorProfile = await this.prisma.operatorProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
+    if (!operatorProfile) {
       throw new Error('Operator profile not found');
     }
 
     const result = await this.s3Service.generateUploadUrl(
-      operatorId,
+      operatorProfile.id,
       dto.fileName,
       dto.fileType,
       dto.documentType,
@@ -62,15 +65,21 @@ export class S3Controller {
   @Post('confirm')
   @Roles(UserRole.OPERATOR)
   @HttpCode(HttpStatus.OK)
-  @UsePipes(new ZodValidationPipe(ConfirmUploadSchema))
   async confirmUpload(
     @CurrentUser() user: { id: string; operatorProfile?: { id: string } },
-    @Body() dto: ConfirmUploadDto,
+    @Body(new ZodValidationPipe(ConfirmUploadSchema)) dto: ConfirmUploadDto,
   ) {
-    const operatorId = user.operatorProfile?.id;
-    if (!operatorId) {
+    // Fetch operator profile
+    const operatorProfile = await this.prisma.operatorProfile.findUnique({
+      where: { userId: user.id },
+      select: { id: true },
+    });
+
+    if (!operatorProfile) {
       throw new Error('Operator profile not found');
     }
+
+    const operatorId = operatorProfile.id;
 
     // Verify file exists in S3
     const exists = await this.s3Service.fileExists(dto.key);
@@ -92,16 +101,18 @@ export class S3Controller {
         documentType: documentTypeMap[dto.documentType],
         fileName: dto.originalFileName,
         fileUrl: dto.key,
+        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
       },
     });
 
     return {
       success: true,
       data: {
-        documentId: document.id,
+        id: document.id,
         documentType: document.documentType,
         fileName: document.fileName,
         uploadedAt: document.uploadedAt,
+        expiresAt: document.expiresAt,
       },
     };
   }
@@ -121,8 +132,15 @@ export class S3Controller {
     }
 
     // Check authorization: admin can access all, operators can only access their own
-    if (user.role !== UserRole.ADMIN && document.operatorId !== user.operatorProfile?.id) {
-      throw new Error('Not authorized to access this document');
+    if (user.role !== UserRole.ADMIN) {
+      const operatorProfile = await this.prisma.operatorProfile.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      });
+
+      if (!operatorProfile || document.operatorId !== operatorProfile.id) {
+        throw new Error('Not authorized to access this document');
+      }
     }
 
     const result = await this.s3Service.generateDownloadUrl(document.fileUrl);

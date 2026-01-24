@@ -15,10 +15,14 @@ import { PaymentsService } from './payments.service.js';
 import {
   CreatePaymentIntentSchema,
   ConfirmPaymentSchema,
+  CreateGroupPaymentIntentSchema,
+  ConfirmGroupPaymentSchema,
 } from './dto/create-payment-intent.dto.js';
 import type {
   CreatePaymentIntentDto,
   ConfirmPaymentDto,
+  CreateGroupPaymentIntentDto,
+  ConfirmGroupPaymentDto,
 } from './dto/create-payment-intent.dto.js';
 
 @Controller('payments')
@@ -74,6 +78,63 @@ export class PaymentsController {
       success: true,
       data: transaction,
       message: 'Refund processed successfully',
+    };
+  }
+
+  // =========================================================================
+  // GROUP PAYMENT ENDPOINTS (for return journeys)
+  // =========================================================================
+
+  /**
+   * POST /payments/group/create-intent
+   * Create Stripe payment intent for a booking group (return journey)
+   * Single payment covers both outbound and return legs with discount applied
+   */
+  @Post('group/create-intent')
+  @HttpCode(HttpStatus.CREATED)
+  async createGroupPaymentIntent(
+    @CurrentUser() user: any,
+    @Body(new ZodValidationPipe(CreateGroupPaymentIntentSchema)) dto: CreateGroupPaymentIntentDto,
+  ) {
+    const paymentIntent = await this.paymentsService.createGroupPaymentIntent(user.id, dto);
+    return {
+      success: true,
+      data: paymentIntent,
+    };
+  }
+
+  /**
+   * POST /payments/group/confirm
+   * Confirm payment for a booking group (return journey)
+   * Updates both bookings to PAID status
+   */
+  @Post('group/confirm')
+  @HttpCode(HttpStatus.OK)
+  async confirmGroupPayment(
+    @CurrentUser() user: any,
+    @Body(new ZodValidationPipe(ConfirmGroupPaymentSchema)) dto: ConfirmGroupPaymentDto,
+  ) {
+    const result = await this.paymentsService.confirmGroupPayment(user.id, dto);
+    return {
+      success: true,
+      data: result,
+      message: 'Group payment confirmed successfully',
+    };
+  }
+
+  /**
+   * GET /payments/group/:groupId/transactions
+   * Get transaction history for a booking group
+   */
+  @Get('group/:groupId/transactions')
+  async getGroupTransactionHistory(@Param('groupId') groupId: string) {
+    const transactions = await this.paymentsService.getGroupTransactionHistory(groupId);
+    return {
+      success: true,
+      data: transactions,
+      meta: {
+        total: transactions.length,
+      },
     };
   }
 }

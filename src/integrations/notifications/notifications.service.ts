@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { SendGridService } from '../sendgrid/sendgrid.service.js';
+import { ResendService } from '../resend/resend.service.js';
 import { TwilioService } from '../twilio/twilio.service.js';
 import { PrismaService } from '../../database/prisma.service.js';
+import { SystemSettingsService } from '../../modules/system-settings/system-settings.service.js';
 
 export interface CustomerNotificationData {
   customerId: string;
@@ -77,14 +78,48 @@ export interface BidWonData {
   groupReference?: string;
 }
 
+export interface JobOfferData {
+  operatorId: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: Date;
+  bidAmount: string;
+  acceptanceDeadline: Date;
+}
+
+export interface JobEscalationData {
+  jobId: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: Date;
+  vehicleType: string;
+  customerPrice: string;
+  reason: 'NO_BIDS_RECEIVED' | 'ALL_OPERATORS_REJECTED';
+}
+
+export interface BookingCancellationNotificationData {
+  customerId: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: Date;
+  refundAmount: string;
+  refundPercent: number;
+  cancellationReason?: string;
+  assignedOperatorId?: string;
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
   constructor(
-    private readonly sendGridService: SendGridService,
+    private readonly resendService: ResendService,
     private readonly twilioService: TwilioService,
     private readonly prisma: PrismaService,
+    private readonly systemSettingsService: SystemSettingsService,
   ) {}
 
   /**
@@ -103,7 +138,7 @@ export class NotificationsService {
     const formattedDatetime = this.formatDateTime(data.pickupDatetime);
 
     // Send email
-    await this.sendGridService.sendBookingConfirmation(customer.email, {
+    await this.resendService.sendBookingConfirmation(customer.email, {
       customerName: `${customer.firstName} ${customer.lastName}`,
       bookingReference: data.bookingReference,
       pickupAddress: data.pickupAddress,
@@ -145,7 +180,7 @@ export class NotificationsService {
     const returnDatetime = this.formatDateTime(data.returnJourney.pickupDatetime);
 
     // Send email with both journey details
-    await this.sendGridService.sendEmail({
+    await this.resendService.sendEmail({
       to: customer.email,
       subject: `Return Journey Confirmed - ${data.groupReference}`,
       html: `
@@ -208,7 +243,7 @@ export class NotificationsService {
 
     const formattedDatetime = this.formatDateTime(data.pickupDatetime);
 
-    await this.sendGridService.sendDriverAssigned(customer.email, {
+    await this.resendService.sendDriverAssigned(customer.email, {
       customerName: `${customer.firstName} ${customer.lastName}`,
       bookingReference: data.bookingReference,
       driverName: data.driverName,
@@ -236,6 +271,12 @@ export class NotificationsService {
   async broadcastNewJob(data: JobBroadcastData): Promise<void> {
     const formattedDatetime = this.formatDateTime(data.pickupDatetime);
 
+    // Get urgent job threshold from SystemSettings
+    const urgentThresholdHours = await this.systemSettingsService.getSettingOrDefault(
+      'URGENT_JOB_SMS_THRESHOLD_HOURS',
+      24,
+    );
+
     for (const operatorId of data.operatorIds) {
       const operator = await this.prisma.operatorProfile.findUnique({
         where: { id: operatorId },
@@ -245,7 +286,7 @@ export class NotificationsService {
       if (!operator) continue;
 
       // Send email
-      await this.sendGridService.sendNewJobAlert(operator.user.email, {
+      await this.resendService.sendNewJobAlert(operator.user.email, {
         operatorName: operator.companyName,
         pickupAddress: data.pickupAddress,
         dropoffAddress: data.dropoffAddress,
@@ -255,9 +296,9 @@ export class NotificationsService {
         jobId: data.jobId,
       });
 
-      // Send SMS for urgent jobs (within 24h)
+      // Send SMS for urgent jobs (within threshold hours)
       const hoursUntilPickup = (data.pickupDatetime.getTime() - Date.now()) / (1000 * 60 * 60);
-      if (hoursUntilPickup < 24 && operator.user.phoneNumber) {
+      if (hoursUntilPickup < urgentThresholdHours && operator.user.phoneNumber) {
         await this.twilioService.sendJobAlertSms(operator.user.phoneNumber, {
           pickupPostcode: data.pickupPostcode,
           dropoffPostcode: data.dropoffPostcode,
@@ -283,7 +324,7 @@ export class NotificationsService {
 
     const formattedDatetime = this.formatDateTime(data.pickupDatetime);
 
-    await this.sendGridService.sendBidWonNotification(operator.user.email, {
+    await this.resendService.sendBidWonNotification(operator.user.email, {
       operatorName: operator.companyName,
       bookingReference: data.bookingReference,
       pickupAddress: data.pickupAddress,
@@ -297,6 +338,162 @@ export class NotificationsService {
     }
 
     await this.logNotification(operator.userId, 'BID_WON', data.bookingReference);
+  }
+
+  /**
+   * Notify operator that a job is offered to them and requires acceptance
+   */
+  async sendJobOfferNotification(data: JobOfferData): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: data.operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) return;
+
+    const formattedDatetime = this.formatDateTime(data.pickupDatetime);
+    const formattedDeadline = this.formatDateTime(data.acceptanceDeadline);
+
+    await this.resendService.sendJobOfferNotification(operator.user.email, {
+      operatorName: operator.companyName,
+      bookingReference: data.bookingReference,
+      pickupAddress: data.pickupAddress,
+      dropoffAddress: data.dropoffAddress,
+      pickupDatetime: formattedDatetime,
+      bidAmount: data.bidAmount,
+      acceptanceDeadline: formattedDeadline,
+    });
+
+    if (operator.user.phoneNumber) {
+      await this.twilioService.sendJobOfferSms(
+        operator.user.phoneNumber,
+        data.bookingReference,
+        formattedDeadline,
+      );
+    }
+
+    await this.logNotification(operator.userId, 'JOB_OFFER', data.bookingReference);
+  }
+
+  /**
+   * Send escalation notification to admin when job cannot be assigned
+   */
+  async sendJobEscalationToAdmin(data: JobEscalationData): Promise<void> {
+    // Get admin email from system settings (reuse ADMIN_PAYOUT_EMAIL)
+    const adminEmail = await this.systemSettingsService.getSettingOrDefault(
+      'ADMIN_PAYOUT_EMAIL',
+      'admin@example.com',
+    );
+
+    const formattedDatetime = this.formatDateTime(data.pickupDatetime);
+    const reasonText = data.reason === 'NO_BIDS_RECEIVED'
+      ? 'No operators submitted bids for this job'
+      : 'All operators rejected or did not respond to this job';
+
+    // Send email to admin
+    await this.resendService.sendEmail({
+      to: adminEmail,
+      subject: `⚠️ ESCALATION: Job ${data.bookingReference} Requires Attention`,
+      html: `
+        <h2>Job Escalation Alert</h2>
+        <p><strong>Reason:</strong> ${reasonText}</p>
+
+        <h3>Job Details</h3>
+        <ul>
+          <li><strong>Booking Reference:</strong> ${data.bookingReference}</li>
+          <li><strong>Job ID:</strong> ${data.jobId}</li>
+          <li><strong>Pickup:</strong> ${data.pickupAddress}</li>
+          <li><strong>Dropoff:</strong> ${data.dropoffAddress}</li>
+          <li><strong>Date/Time:</strong> ${formattedDatetime}</li>
+          <li><strong>Vehicle Type:</strong> ${data.vehicleType}</li>
+          <li><strong>Customer Price:</strong> £${data.customerPrice}</li>
+        </ul>
+
+        <h3>Action Required</h3>
+        <p>Please log in to the admin panel to manually assign an operator or contact the customer.</p>
+        <p><a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/admin/jobs/${data.jobId}">View Job in Admin Panel</a></p>
+      `,
+    });
+
+    // Optionally send SMS to admin phone if configured
+    const adminPhone = await this.systemSettingsService.getSetting('ADMIN_ESCALATION_PHONE');
+    if (adminPhone) {
+      await this.twilioService.sendSms({
+        to: adminPhone,
+        message: `ESCALATION: Job ${data.bookingReference} needs attention. ${reasonText}. Check admin panel.`,
+      });
+    }
+
+    this.logger.warn(`Escalation notification sent to admin for job ${data.jobId}: ${data.reason}`);
+  }
+
+  /**
+   * Send booking cancellation notification to customer and operator (if assigned)
+   */
+  async sendBookingCancellation(data: BookingCancellationNotificationData): Promise<void> {
+    // Get customer details
+    const customer = await this.prisma.user.findUnique({
+      where: { id: data.customerId },
+    });
+
+    if (!customer) {
+      this.logger.warn(`Customer not found: ${data.customerId}`);
+      return;
+    }
+
+    const formattedDatetime = this.formatDateTime(data.pickupDatetime);
+
+    // Send email to customer
+    await this.resendService.sendBookingCancellation(customer.email, {
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      bookingReference: data.bookingReference,
+      pickupAddress: data.pickupAddress,
+      dropoffAddress: data.dropoffAddress,
+      pickupDatetime: formattedDatetime,
+      refundAmount: data.refundAmount,
+      refundPercent: data.refundPercent,
+      cancellationReason: data.cancellationReason,
+    });
+
+    // Send SMS to customer if phone available
+    if (customer.phoneNumber) {
+      await this.twilioService.sendBookingCancellationSms(customer.phoneNumber, {
+        bookingReference: data.bookingReference,
+        refundAmount: data.refundAmount,
+        refundPercent: data.refundPercent,
+      });
+    }
+
+    await this.logNotification(customer.id, 'BOOKING_CANCELLATION', data.bookingReference);
+
+    // Notify assigned operator if exists
+    if (data.assignedOperatorId) {
+      const operator = await this.prisma.operatorProfile.findUnique({
+        where: { id: data.assignedOperatorId },
+        include: { user: true },
+      });
+
+      if (operator) {
+        await this.resendService.sendOperatorJobCancellation(operator.user.email, {
+          operatorName: operator.companyName,
+          bookingReference: data.bookingReference,
+          pickupAddress: data.pickupAddress,
+          dropoffAddress: data.dropoffAddress,
+          pickupDatetime: formattedDatetime,
+        });
+
+        if (operator.user.phoneNumber) {
+          await this.twilioService.sendJobCancellationSms(
+            operator.user.phoneNumber,
+            data.bookingReference,
+          );
+        }
+
+        await this.logNotification(operator.userId, 'JOB_CANCELLATION', data.bookingReference);
+      }
+    }
+
+    this.logger.log(`Cancellation notifications sent for booking ${data.bookingReference}`);
   }
 
   private formatDateTime(date: Date): string {

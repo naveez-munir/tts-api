@@ -3,6 +3,7 @@ import { BullModule } from '@nestjs/bullmq';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 export const BIDDING_QUEUE = 'bidding-queue';
+export const ACCEPTANCE_QUEUE = 'acceptance-queue';
 
 /**
  * Core BullMQ module - sets up Redis connection globally
@@ -21,6 +22,9 @@ export const BIDDING_QUEUE = 'bidding-queue';
     }),
     BullModule.registerQueue({
       name: BIDDING_QUEUE,
+    }),
+    BullModule.registerQueue({
+      name: ACCEPTANCE_QUEUE,
     }),
   ],
   exports: [BullModule],

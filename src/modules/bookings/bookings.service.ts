@@ -1,9 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
+import { VehicleCapacityService } from '../vehicle-capacity/vehicle-capacity.service.js';
+import { SystemSettingsService } from '../system-settings/system-settings.service.js';
+import { QuoteService } from '../../integrations/google-maps/quote.service.js';
+import { StripeService } from '../../integrations/stripe/stripe.service.js';
+import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import type { CreateBookingDto, CreateReturnBookingDto } from './dto/create-booking.dto.js';
 import type { UpdateBookingDto } from './dto/update-booking.dto.js';
 import type { BookingResponse, BookingGroupResponse, CustomerBookingsResponse } from './dto/booking-response.dto.js';
-import { Booking, BookingStatus, JourneyType, BookingGroup, DiscountType } from '@prisma/client';
+import { Booking, BookingStatus, JourneyType, BookingGroup, DiscountType, VehicleType, JobStatus, TransactionType, BidStatus } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
 // Type for booking with group and linked booking
@@ -11,16 +16,52 @@ type BookingWithRelations = Booking & {
   bookingGroup?: BookingGroup | null;
   linkedBooking?: Booking | null;
   pairedBooking?: Booking | null;
+  customer?: { id: string; firstName: string; lastName: string; email: string; phoneNumber: string | null } | null;
 };
+
+// Time window for duplicate detection (in minutes)
+const DUPLICATE_DETECTION_WINDOW_MINUTES = 5;
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(BookingsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly vehicleCapacityService: VehicleCapacityService,
+    private readonly systemSettingsService: SystemSettingsService,
+    private readonly quoteService: QuoteService,
+    private readonly stripeService: StripeService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   /**
    * Create a one-way booking
+   * Returns existing booking if duplicate detected (idempotent)
    */
   async create(customerId: string, createBookingDto: CreateBookingDto): Promise<Booking> {
+    // Validate vehicle capacity before creating booking
+    await this.validateVehicleCapacity(
+      createBookingDto.vehicleType as VehicleType,
+      createBookingDto.passengerCount,
+      createBookingDto.luggageCount,
+    );
+
+    // Check for existing duplicate booking
+    const existingBooking = await this.findDuplicateBooking(
+      customerId,
+      createBookingDto.pickupLat,
+      createBookingDto.pickupLng,
+      createBookingDto.dropoffLat,
+      createBookingDto.dropoffLng,
+      new Date(createBookingDto.pickupDatetime),
+    );
+
+    if (existingBooking) {
+      // Return existing booking instead of creating duplicate
+      return existingBooking;
+    }
+
     const bookingReference = this.generateBookingReference();
 
     const booking = await this.prisma.booking.create({
@@ -43,6 +84,14 @@ export class BookingsService {
         serviceType: createBookingDto.serviceType,
         flightNumber: createBookingDto.flightNumber || null,
         specialRequirements: createBookingDto.specialRequirements || null,
+        // Airport-specific fields
+        terminal: createBookingDto.terminal || null,
+        hasMeetAndGreet: createBookingDto.hasMeetAndGreet ?? false,
+        // Service options
+        childSeats: createBookingDto.childSeats ?? 0,
+        boosterSeats: createBookingDto.boosterSeats ?? 0,
+        hasPickAndDrop: createBookingDto.hasPickAndDrop ?? false,
+        // Lead passenger contact
         customerName: createBookingDto.customerName || null,
         customerEmail: createBookingDto.customerEmail || null,
         customerPhone: createBookingDto.customerPhone || null,
@@ -56,11 +105,48 @@ export class BookingsService {
 
   /**
    * Create a return journey (BookingGroup with outbound + return bookings)
+   * Returns existing booking group if duplicate detected (idempotent)
    */
   async createReturnJourney(
     customerId: string,
     dto: CreateReturnBookingDto,
   ): Promise<{ bookingGroup: BookingGroup; outboundBooking: Booking; returnBooking: Booking }> {
+    // Validate vehicle capacity for both legs
+    await this.validateVehicleCapacity(
+      dto.outbound.vehicleType as VehicleType,
+      dto.outbound.passengerCount,
+      dto.outbound.luggageCount,
+    );
+    await this.validateVehicleCapacity(
+      dto.returnJourney.vehicleType as VehicleType,
+      dto.returnJourney.passengerCount,
+      dto.returnJourney.luggageCount,
+    );
+
+    // Check for existing duplicate return journey
+    const existingGroup = await this.findDuplicateReturnJourney(
+      customerId,
+      dto.outbound.pickupLat,
+      dto.outbound.pickupLng,
+      dto.outbound.dropoffLat,
+      dto.outbound.dropoffLng,
+      new Date(dto.outbound.pickupDatetime),
+    );
+
+    if (existingGroup) {
+      // Return existing booking group instead of creating duplicate
+      const outboundBooking = existingGroup.bookings.find(b => b.journeyType === JourneyType.OUTBOUND);
+      const returnBooking = existingGroup.bookings.find(b => b.journeyType === JourneyType.RETURN);
+
+      if (outboundBooking && returnBooking) {
+        return {
+          bookingGroup: existingGroup,
+          outboundBooking,
+          returnBooking,
+        };
+      }
+    }
+
     const groupReference = this.generateGroupReference();
     const outboundReference = this.generateBookingReference();
     const returnReference = this.generateBookingReference();
@@ -103,6 +189,14 @@ export class BookingsService {
           serviceType: dto.outbound.serviceType,
           flightNumber: dto.outbound.flightNumber || null,
           specialRequirements: dto.outbound.specialRequirements || null,
+          // Airport-specific fields
+          terminal: dto.outbound.terminal || null,
+          hasMeetAndGreet: dto.outbound.hasMeetAndGreet ?? false,
+          // Service options
+          childSeats: dto.outbound.childSeats ?? 0,
+          boosterSeats: dto.outbound.boosterSeats ?? 0,
+          hasPickAndDrop: dto.outbound.hasPickAndDrop ?? false,
+          // Lead passenger contact
           customerName: dto.outbound.customerName || null,
           customerEmail: dto.outbound.customerEmail || null,
           customerPhone: dto.outbound.customerPhone || null,
@@ -134,6 +228,14 @@ export class BookingsService {
           serviceType: dto.returnJourney.serviceType,
           flightNumber: dto.returnJourney.flightNumber || null,
           specialRequirements: dto.returnJourney.specialRequirements || null,
+          // Airport-specific fields
+          terminal: dto.returnJourney.terminal || null,
+          hasMeetAndGreet: dto.returnJourney.hasMeetAndGreet ?? false,
+          // Service options
+          childSeats: dto.returnJourney.childSeats ?? 0,
+          boosterSeats: dto.returnJourney.boosterSeats ?? 0,
+          hasPickAndDrop: dto.returnJourney.hasPickAndDrop ?? false,
+          // Lead passenger contact
           customerName: dto.returnJourney.customerName || null,
           customerEmail: dto.returnJourney.customerEmail || null,
           customerPhone: dto.returnJourney.customerPhone || null,
@@ -155,6 +257,7 @@ export class BookingsService {
         bookingGroup: true,
         linkedBooking: true,
         pairedBooking: true,
+        customer: true,
       },
     });
 
@@ -172,6 +275,7 @@ export class BookingsService {
         bookingGroup: true,
         linkedBooking: true,
         pairedBooking: true,
+        customer: true,
       },
     });
 
@@ -289,34 +393,6 @@ export class BookingsService {
     });
   }
 
-  async cancel(id: string): Promise<Booking> {
-    const booking = await this.prisma.booking.findUnique({
-      where: { id },
-      include: { bookingGroup: true },
-    });
-
-    if (!booking) {
-      throw new NotFoundException(`Booking with ID ${id} not found`);
-    }
-
-    if (booking.status === BookingStatus.CANCELLED) {
-      throw new BadRequestException('Booking is already cancelled');
-    }
-
-    // Update booking status
-    const updatedBooking = await this.prisma.booking.update({
-      where: { id },
-      data: { status: BookingStatus.CANCELLED },
-    });
-
-    // If part of a return journey, update group status
-    if (booking.bookingGroupId) {
-      await this.updateBookingGroupStatus(booking.bookingGroupId);
-    }
-
-    return updatedBooking;
-  }
-
   /**
    * Update booking group status based on individual booking statuses
    */
@@ -367,7 +443,8 @@ export class BookingsService {
   // RESPONSE FORMATTERS
   // =========================================================================
 
-  formatBookingResponse(booking: Booking): BookingResponse {
+  formatBookingResponse(booking: Booking | BookingWithRelations): BookingResponse {
+    const bookingWithRelations = booking as BookingWithRelations;
     return {
       id: booking.id,
       bookingReference: booking.bookingReference,
@@ -384,10 +461,23 @@ export class BookingsService {
       serviceType: booking.serviceType,
       flightNumber: booking.flightNumber,
       specialRequirements: booking.specialRequirements,
+      // Airport-specific fields
+      terminal: booking.terminal,
+      hasMeetAndGreet: booking.hasMeetAndGreet,
+      // Service options
+      childSeats: booking.childSeats,
+      boosterSeats: booking.boosterSeats,
+      hasPickAndDrop: booking.hasPickAndDrop,
+      // Pricing and linking
       customerPrice: Number(booking.customerPrice),
       linkedBookingId: booking.linkedBookingId,
       bookingGroupId: booking.bookingGroupId,
       createdAt: booking.createdAt.toISOString(),
+      // Customer data (include if available from relation)
+      customerId: booking.customerId,
+      customerName: booking.customerName || (bookingWithRelations.customer ? `${bookingWithRelations.customer.firstName} ${bookingWithRelations.customer.lastName}` : null),
+      customerEmail: booking.customerEmail || bookingWithRelations.customer?.email || null,
+      customerPhone: booking.customerPhone || bookingWithRelations.customer?.phoneNumber || null,
     };
   }
 
@@ -402,6 +492,591 @@ export class BookingsService {
       createdAt: group.createdAt.toISOString(),
       bookings: group.bookings.map((b) => this.formatBookingResponse(b)),
     };
+  }
+
+  // =========================================================================
+  // DUPLICATE DETECTION
+  // =========================================================================
+
+  /**
+   * Find existing PENDING_PAYMENT booking with same journey details
+   * created within the duplicate detection window
+   */
+  private async findDuplicateBooking(
+    customerId: string,
+    pickupLat: number,
+    pickupLng: number,
+    dropoffLat: number,
+    dropoffLng: number,
+    pickupDatetime: Date,
+  ): Promise<Booking | null> {
+    const windowStart = new Date();
+    windowStart.setMinutes(windowStart.getMinutes() - DUPLICATE_DETECTION_WINDOW_MINUTES);
+
+    // Find booking with same customer, locations, and pickup time
+    // created within the detection window and still pending payment
+    const existingBooking = await this.prisma.booking.findFirst({
+      where: {
+        customerId,
+        journeyType: JourneyType.ONE_WAY,
+        status: BookingStatus.PENDING_PAYMENT,
+        pickupLat,
+        pickupLng,
+        dropoffLat,
+        dropoffLng,
+        pickupDatetime,
+        createdAt: {
+          gte: windowStart,
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return existingBooking;
+  }
+
+  /**
+   * Find existing PENDING_PAYMENT return journey with same outbound details
+   * created within the duplicate detection window
+   */
+  private async findDuplicateReturnJourney(
+    customerId: string,
+    outboundPickupLat: number,
+    outboundPickupLng: number,
+    outboundDropoffLat: number,
+    outboundDropoffLng: number,
+    outboundPickupDatetime: Date,
+  ): Promise<(BookingGroup & { bookings: Booking[] }) | null> {
+    const windowStart = new Date();
+    windowStart.setMinutes(windowStart.getMinutes() - DUPLICATE_DETECTION_WINDOW_MINUTES);
+
+    // Find booking groups with matching outbound journey
+    const existingGroup = await this.prisma.bookingGroup.findFirst({
+      where: {
+        customerId,
+        status: 'ACTIVE',
+        createdAt: {
+          gte: windowStart,
+        },
+        bookings: {
+          some: {
+            journeyType: JourneyType.OUTBOUND,
+            status: BookingStatus.PENDING_PAYMENT,
+            pickupLat: outboundPickupLat,
+            pickupLng: outboundPickupLng,
+            dropoffLat: outboundDropoffLat,
+            dropoffLng: outboundDropoffLng,
+            pickupDatetime: outboundPickupDatetime,
+          },
+        },
+      },
+      include: {
+        bookings: {
+          orderBy: { journeyType: 'asc' },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return existingGroup;
+  }
+
+  // =========================================================================
+  // VEHICLE CAPACITY VALIDATION
+  // =========================================================================
+
+  /**
+   * Validate passenger and luggage count against vehicle capacity
+   */
+  private async validateVehicleCapacity(
+    vehicleType: VehicleType,
+    passengerCount: number,
+    luggageCount: number,
+  ): Promise<void> {
+    const capacity = await this.vehicleCapacityService.findByVehicleType(vehicleType);
+
+    if (passengerCount > capacity.maxPassengers) {
+      throw new BadRequestException(
+        `${vehicleType} vehicle can accommodate maximum ${capacity.maxPassengers} passengers. ` +
+        `You requested ${passengerCount} passengers.`
+      );
+    }
+
+    if (luggageCount > capacity.maxSuitcases) {
+      throw new BadRequestException(
+        `${vehicleType} vehicle can accommodate maximum ${capacity.maxSuitcases} suitcases. ` +
+        `You requested ${luggageCount} suitcases.`
+      );
+    }
+  }
+
+  // =========================================================================
+  // CANCELLATION POLICY
+  // =========================================================================
+
+  /**
+   * Cancel a booking with:
+   * - Stripe refund processing (based on cancellation policy)
+   * - Customer notification (email + SMS)
+   * - Operator notification if job was assigned
+   * - Job status update to CANCELLED
+   */
+  async cancelBooking(
+    bookingId: string,
+    reason?: string,
+  ): Promise<{ booking: Booking; refundAmount: number; refundPercent: number }> {
+    // Fetch booking with related job and transaction data
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        transactions: true,
+        job: {
+          include: {
+            assignedOperator: true,
+            bids: true,
+          },
+        },
+      },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.status === BookingStatus.CANCELLED || booking.status === BookingStatus.REFUNDED) {
+      throw new BadRequestException('Booking is already cancelled');
+    }
+
+    if (booking.status === BookingStatus.COMPLETED) {
+      throw new BadRequestException('Cannot cancel a completed booking');
+    }
+
+    // Calculate refund based on cancellation policy
+    const { refundAmount, refundPercent } = await this.calculateCancellationRefund(booking);
+
+    // 1. Process Stripe refund if applicable
+    const originalPayment = booking.transactions.find(
+      (t) => t.transactionType === TransactionType.CUSTOMER_PAYMENT && t.status === 'COMPLETED',
+    );
+
+    if (refundAmount > 0 && originalPayment?.stripeTransactionId) {
+      try {
+        const amountInPence = Math.round(refundAmount * 100);
+        await this.stripeService.refundPayment(
+          originalPayment.stripeTransactionId,
+          amountInPence,
+          reason || 'Customer cancellation',
+        );
+
+        // Create refund transaction record
+        await this.prisma.transaction.create({
+          data: {
+            bookingId,
+            amount: refundAmount,
+            transactionType: TransactionType.REFUND,
+            status: 'COMPLETED',
+          },
+        });
+
+        this.logger.log(`Processed Stripe refund of £${refundAmount} for booking ${booking.bookingReference}`);
+      } catch (error) {
+        this.logger.error(`Failed to process Stripe refund for booking ${bookingId}`, error);
+        // Continue with cancellation even if refund fails - admin can handle manually
+      }
+    }
+
+    // 2. Cancel associated job if exists
+    let assignedOperatorId: string | undefined;
+    if (booking.job) {
+      assignedOperatorId = booking.job.assignedOperatorId || undefined;
+
+      // Update job status to CANCELLED
+      await this.prisma.job.update({
+        where: { id: booking.job.id },
+        data: { status: JobStatus.CANCELLED },
+      });
+
+      // Mark all pending bids as LOST
+      if (booking.job.bids.length > 0) {
+        await this.prisma.bid.updateMany({
+          where: {
+            jobId: booking.job.id,
+            status: { in: [BidStatus.PENDING, BidStatus.OFFERED] },
+          },
+          data: { status: BidStatus.DECLINED },
+        });
+      }
+
+      this.logger.log(`Cancelled job ${booking.job.id} for booking ${booking.bookingReference}`);
+    }
+
+    // 3. Update booking status
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: BookingStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationReason: reason || null,
+        refundAmount: new Prisma.Decimal(refundAmount.toString()),
+        refundPercent,
+      },
+    });
+
+    // 4. Update booking group status if part of return journey
+    if (booking.bookingGroupId) {
+      await this.updateBookingGroupStatus(booking.bookingGroupId);
+    }
+
+    // 5. Send notifications (async - don't block response)
+    this.notificationsService.sendBookingCancellation({
+      customerId: booking.customerId,
+      bookingReference: booking.bookingReference,
+      pickupAddress: booking.pickupAddress,
+      dropoffAddress: booking.dropoffAddress,
+      pickupDatetime: booking.pickupDatetime,
+      refundAmount: `£${refundAmount.toFixed(2)}`,
+      refundPercent,
+      cancellationReason: reason,
+      assignedOperatorId,
+    }).catch((error) => {
+      this.logger.error(`Failed to send cancellation notifications for booking ${bookingId}`, error);
+    });
+
+    this.logger.log(`Booking ${booking.bookingReference} cancelled. Refund: £${refundAmount} (${refundPercent}%)`);
+
+    return { booking: updatedBooking, refundAmount, refundPercent };
+  }
+
+  /**
+   * Calculate refund amount based on cancellation policy tiers
+   */
+  private async calculateCancellationRefund(
+    booking: Booking,
+  ): Promise<{ refundAmount: number; refundPercent: number }> {
+    const now = new Date();
+    const pickupTime = new Date(booking.pickupDatetime);
+    const hoursUntilPickup = (pickupTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    // Get cancellation policies ordered by hoursBeforePickup DESC
+    const policies = await this.prisma.cancellationPolicy.findMany({
+      where: { isActive: true },
+      orderBy: { hoursBeforePickup: 'desc' },
+    });
+
+    // Find applicable policy (first one where hoursUntilPickup >= hoursBeforePickup)
+    let refundPercent = 0;
+    for (const policy of policies) {
+      if (hoursUntilPickup >= policy.hoursBeforePickup) {
+        refundPercent = policy.refundPercent;
+        break;
+      }
+    }
+
+    const customerPrice = Number(booking.customerPrice);
+    const refundAmount = Math.round((customerPrice * refundPercent) / 100 * 100) / 100;
+
+    return { refundAmount, refundPercent };
+  }
+
+  // =========================================================================
+  // NO-SHOW HANDLING
+  // =========================================================================
+
+  /**
+   * Mark a booking as no-show
+   */
+  async markAsNoShow(bookingId: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (booking.status !== BookingStatus.ASSIGNED && booking.status !== BookingStatus.IN_PROGRESS) {
+      throw new BadRequestException('Only assigned or in-progress bookings can be marked as no-show');
+    }
+
+    // Get no-show charge percentage from settings
+    const noShowChargePercent = await this.systemSettingsService.getSettingOrDefault(
+      'NO_SHOW_CHARGE_PERCENT',
+      100,
+    );
+
+    const customerPrice = Number(booking.customerPrice);
+    const noShowCharges = Math.round((customerPrice * noShowChargePercent) / 100 * 100) / 100;
+
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: BookingStatus.NO_SHOW,
+        markedNoShowAt: new Date(),
+        noShowCharges: new Prisma.Decimal(noShowCharges.toString()),
+      },
+    });
+
+    return updatedBooking;
+  }
+
+  // =========================================================================
+  // WAITING TIME CALCULATION
+  // =========================================================================
+
+  /**
+   * Record driver arrival and calculate waiting charges
+   */
+  async recordDriverArrival(bookingId: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    return this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { driverArrivedAt: new Date() },
+    });
+  }
+
+  /**
+   * Record passenger pickup and calculate waiting charges
+   */
+  async recordPassengerPickup(bookingId: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.driverArrivedAt) {
+      throw new BadRequestException('Driver arrival must be recorded first');
+    }
+
+    const waitingCharges = await this.calculateWaitingCharges(booking);
+
+    return this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        passengerPickedUpAt: new Date(),
+        waitingCharges: new Prisma.Decimal(waitingCharges.toString()),
+        status: BookingStatus.IN_PROGRESS,
+      },
+    });
+  }
+
+  /**
+   * Calculate waiting charges based on service type
+   */
+  private async calculateWaitingCharges(booking: Booking): Promise<number> {
+    if (!booking.driverArrivedAt) return 0;
+
+    const now = new Date();
+    const waitingMinutes = (now.getTime() - booking.driverArrivedAt.getTime()) / (1000 * 60);
+
+    const isAirport = booking.serviceType === 'AIRPORT_PICKUP';
+
+    // Get settings
+    const freeWaitingMinutes = isAirport
+      ? await this.systemSettingsService.getSettingOrDefault('AIRPORT_FREE_WAITING_MINUTES', 60)
+      : await this.systemSettingsService.getSettingOrDefault('NON_AIRPORT_FREE_WAITING_MINUTES', 45);
+
+    const ratePerMinute = isAirport
+      ? await this.systemSettingsService.getSettingOrDefault('AIRPORT_WAITING_RATE_PER_MINUTE', 0.35)
+      : await this.systemSettingsService.getSettingOrDefault('NON_AIRPORT_WAITING_RATE_PER_MINUTE', 0.25);
+
+    if (waitingMinutes <= freeWaitingMinutes) {
+      return 0;
+    }
+
+    const chargeableMinutes = waitingMinutes - freeWaitingMinutes;
+    const charges = Math.round(chargeableMinutes * ratePerMinute * 100) / 100;
+
+    return charges;
+  }
+
+  // =========================================================================
+  // AMENDMENT FEE
+  // =========================================================================
+
+  /**
+   * Apply amendment fee when booking is modified and recalculate price
+   */
+  async applyAmendmentFee(
+    bookingId: string,
+    recalculatePrice: boolean = true,
+  ): Promise<{ booking: Booking; newPrice: number; amendmentFee: number }> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    const amendmentFee = await this.systemSettingsService.getSettingOrDefault('AMENDMENT_FEE', 15);
+    const originalPrice = Number(booking.customerPrice);
+
+    let newPrice = originalPrice;
+
+    // Recalculate price based on current booking details
+    if (recalculatePrice) {
+      const quote = await this.quoteService.calculateQuote({
+        pickupLat: Number(booking.pickupLat),
+        pickupLng: Number(booking.pickupLng),
+        dropoffLat: Number(booking.dropoffLat),
+        dropoffLng: Number(booking.dropoffLng),
+        vehicleType: booking.vehicleType,
+        pickupDatetime: booking.pickupDatetime.toISOString(),
+        meetAndGreet: false, // Keep existing add-ons
+        childSeats: booking.childSeats || 0,
+        boosterSeats: booking.boosterSeats || 0,
+        pickAndDrop: booking.hasPickAndDrop || false,
+      });
+      newPrice = quote.totalPrice;
+    }
+
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        amendedAt: new Date(),
+        amendmentFee: new Prisma.Decimal(amendmentFee.toString()),
+        originalPrice: new Prisma.Decimal(originalPrice.toString()),
+        customerPrice: new Prisma.Decimal((newPrice + amendmentFee).toString()),
+      },
+    });
+
+    return { booking: updatedBooking, newPrice: newPrice + amendmentFee, amendmentFee };
+  }
+
+  // =========================================================================
+  // NEW BOOKING DISCOUNT
+  // =========================================================================
+
+  /**
+   * Check if customer is eligible for new booking discount (first booking)
+   */
+  async isEligibleForNewBookingDiscount(customerId: string): Promise<boolean> {
+    const existingBookings = await this.prisma.booking.count({
+      where: {
+        customerId,
+        status: {
+          in: [BookingStatus.COMPLETED, BookingStatus.PAID, BookingStatus.ASSIGNED],
+        },
+      },
+    });
+
+    return existingBookings === 0;
+  }
+
+  /**
+   * Calculate new booking discount
+   */
+  async calculateNewBookingDiscount(
+    customerId: string,
+    originalPrice: number,
+  ): Promise<{ discountAmount: number; discountPercent: number; finalPrice: number }> {
+    const isEligible = await this.isEligibleForNewBookingDiscount(customerId);
+
+    if (!isEligible) {
+      return { discountAmount: 0, discountPercent: 0, finalPrice: originalPrice };
+    }
+
+    const discountPercent = await this.systemSettingsService.getSettingOrDefault(
+      'NEW_BOOKING_DISCOUNT_PERCENT',
+      10,
+    );
+
+    const discountAmount = Math.round((originalPrice * discountPercent) / 100 * 100) / 100;
+    const finalPrice = Math.round((originalPrice - discountAmount) * 100) / 100;
+
+    return { discountAmount, discountPercent, finalPrice };
+  }
+
+  // =========================================================================
+  // CHILD SEAT REFUND
+  // =========================================================================
+
+  /**
+   * Refund child seat fee if child seat was unavailable
+   */
+  async refundChildSeatFee(
+    bookingId: string,
+    reason: string = 'Child seat unavailable',
+  ): Promise<{ booking: Booking; refundAmount: number }> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.childSeats || booking.childSeats === 0) {
+      throw new BadRequestException('No child seats were booked');
+    }
+
+    const childSeatFee = await this.systemSettingsService.getSettingOrDefault('CHILD_SEAT_FEE', 10);
+    const refundAmount = childSeatFee * booking.childSeats;
+
+    const currentPrice = Number(booking.customerPrice);
+    const newPrice = Math.max(0, currentPrice - refundAmount);
+
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        customerPrice: new Prisma.Decimal(newPrice.toString()),
+        childSeats: 0, // Remove child seats from booking
+        specialRequirements: booking.specialRequirements
+          ? `${booking.specialRequirements}. REFUND: ${reason} (£${refundAmount.toFixed(2)})`
+          : `REFUND: ${reason} (£${refundAmount.toFixed(2)})`,
+      },
+    });
+
+    return { booking: updatedBooking, refundAmount };
+  }
+
+  /**
+   * Refund booster seat fee if booster seat was unavailable
+   */
+  async refundBoosterSeatFee(
+    bookingId: string,
+    reason: string = 'Booster seat unavailable',
+  ): Promise<{ booking: Booking; refundAmount: number }> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+    });
+
+    if (!booking) {
+      throw new NotFoundException('Booking not found');
+    }
+
+    if (!booking.boosterSeats || booking.boosterSeats === 0) {
+      throw new BadRequestException('No booster seats were booked');
+    }
+
+    const boosterSeatFee = await this.systemSettingsService.getSettingOrDefault('BOOSTER_SEAT_FEE', 5);
+    const refundAmount = boosterSeatFee * booking.boosterSeats;
+
+    const currentPrice = Number(booking.customerPrice);
+    const newPrice = Math.max(0, currentPrice - refundAmount);
+
+    const updatedBooking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        customerPrice: new Prisma.Decimal(newPrice.toString()),
+        boosterSeats: 0, // Remove booster seats from booking
+        specialRequirements: booking.specialRequirements
+          ? `${booking.specialRequirements}. REFUND: ${reason} (£${refundAmount.toFixed(2)})`
+          : `REFUND: ${reason} (£${refundAmount.toFixed(2)})`,
+      },
+    });
+
+    return { booking: updatedBooking, refundAmount };
   }
 
   // =========================================================================

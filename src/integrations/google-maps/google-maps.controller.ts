@@ -6,6 +6,7 @@ import {
   Body,
   BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { GoogleMapsService } from './google-maps.service.js';
 import { QuoteService } from './quote.service.js';
 import type { PlacePrediction, GeocodingResult, DistanceResult } from './google-maps.service.js';
@@ -16,6 +17,8 @@ import type {
   SingleJourneyQuote,
   ReturnJourneyQuoteRequest,
   ReturnJourneyQuote,
+  AllVehiclesQuoteRequest,
+  AllVehiclesQuoteResponse,
 } from './quote.service.js';
 
 @Controller('api/maps')
@@ -30,6 +33,7 @@ export class GoogleMapsController {
    * Get address autocomplete suggestions
    */
   @Get('autocomplete')
+  @Throttle({ default: { limit: 30, ttl: 60000 } }) // 30 requests per 60 seconds for autocomplete
   async autocomplete(
     @Query('input') input: string,
     @Query('sessionToken') sessionToken?: string,
@@ -54,6 +58,7 @@ export class GoogleMapsController {
    * Get geocoding details for a place
    */
   @Get('place-details')
+  @Throttle({ default: { limit: 20, ttl: 60000 } }) // 20 requests per 60 seconds for place details
   async placeDetails(
     @Query('placeId') placeId: string,
   ): Promise<{ success: boolean; data: GeocodingResult | null }> {
@@ -169,6 +174,46 @@ export class GoogleMapsController {
     this.validateSingleJourneyRequest(request.returnJourney, 'returnJourney');
 
     const quote = await this.quoteService.calculateReturnJourneyQuote(request);
+
+    return {
+      success: true,
+      data: quote,
+    };
+  }
+
+  /**
+   * POST /api/maps/quote/all-vehicles
+   * Calculate price quotes for all available vehicles in a single request
+   */
+  @Post('quote/all-vehicles')
+  async calculateAllVehiclesQuote(
+    @Body() request: AllVehiclesQuoteRequest,
+  ): Promise<{ success: boolean; data: AllVehiclesQuoteResponse }> {
+    if (!request.pickupLat || !request.pickupLng) {
+      throw new BadRequestException('pickupLat and pickupLng are required');
+    }
+
+    if (!request.dropoffLat || !request.dropoffLng) {
+      throw new BadRequestException('dropoffLat and dropoffLng are required');
+    }
+
+    if (!request.pickupDatetime) {
+      throw new BadRequestException('pickupDatetime is required');
+    }
+
+    if (typeof request.passengers !== 'number' || request.passengers < 1) {
+      throw new BadRequestException('passengers must be a positive number');
+    }
+
+    if (typeof request.luggage !== 'number' || request.luggage < 0) {
+      throw new BadRequestException('luggage must be a non-negative number');
+    }
+
+    if (request.isReturnJourney && !request.returnDatetime) {
+      throw new BadRequestException('returnDatetime is required for return journeys');
+    }
+
+    const quote = await this.quoteService.calculateAllVehiclesQuote(request);
 
     return {
       success: true,

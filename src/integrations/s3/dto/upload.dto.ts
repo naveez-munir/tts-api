@@ -16,6 +16,17 @@ export const ConfirmUploadSchema = z.object({
   key: z.string().min(1, 'S3 key is required'),
   documentType: z.enum(['license', 'insurance', 'other']),
   originalFileName: z.string().min(1, 'Original file name is required'),
+  expiresAt: z
+    .string()
+    .datetime({ message: 'Expiry date must be a valid ISO date' })
+    .optional()
+    .refine(
+      (val) => {
+        if (!val) return true;
+        return new Date(val) > new Date();
+      },
+      { message: 'Expiry date must be in the future' },
+    ),
 });
 
 export type ConfirmUploadDto = z.infer<typeof ConfirmUploadSchema>;

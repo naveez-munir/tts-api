@@ -11,6 +11,9 @@ import type { Request } from 'express';
 import { StripeService } from './stripe.service.js';
 import { PrismaService } from '../../database/prisma.service.js';
 import { BookingStatus, TransactionType } from '@prisma/client';
+import { JobsCreationService } from '../../modules/jobs/jobs-creation.service.js';
+import { SystemSettingsService } from '../../modules/system-settings/system-settings.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 @Controller('api/webhooks/stripe')
 export class StripeWebhookController {
@@ -19,6 +22,9 @@ export class StripeWebhookController {
   constructor(
     private readonly stripeService: StripeService,
     private readonly prisma: PrismaService,
+    private readonly jobsCreationService: JobsCreationService,
+    private readonly systemSettingsService: SystemSettingsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -28,10 +34,11 @@ export class StripeWebhookController {
   @Post()
   @HttpCode(HttpStatus.OK)
   async handleWebhook(
-    @Req() req: Request,
+    @Req() req: Request & { rawBody?: string },
     @Headers('stripe-signature') signature: string,
   ): Promise<{ received: boolean }> {
-    const payload = req.body as Buffer;
+    this.logger.log('Received Stripe webhook');
+    const payload = req.rawBody || JSON.stringify(req.body);
 
     // Verify webhook signature
     const event = this.stripeService.constructWebhookEvent(payload, signature);
@@ -76,7 +83,25 @@ export class StripeWebhookController {
       return;
     }
 
-    // Find booking
+    const existingTransaction = await this.prisma.transaction.findFirst({
+      where: { stripeTransactionId: paymentIntent.id },
+    });
+
+    if (existingTransaction) {
+      this.logger.log(`Transaction already processed for payment intent: ${paymentIntent.id}`);
+      return;
+    }
+
+    const bookingGroup = await this.prisma.bookingGroup.findUnique({
+      where: { id: bookingId },
+      include: { bookings: true },
+    });
+
+    if (bookingGroup) {
+      await this.handleBookingGroupPayment(bookingGroup, paymentIntent.id);
+      return;
+    }
+
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
     });
@@ -86,24 +111,119 @@ export class StripeWebhookController {
       return;
     }
 
-    // Create transaction record
+    await this.handleSingleBookingPayment(booking, paymentIntent.id);
+  }
+
+  private async handleSingleBookingPayment(booking: any, paymentIntentId: string): Promise<void> {
     await this.prisma.transaction.create({
       data: {
-        bookingId,
+        bookingId: booking.id,
         amount: booking.customerPrice,
         transactionType: TransactionType.CUSTOMER_PAYMENT,
-        stripeTransactionId: paymentIntent.id,
+        stripeTransactionId: paymentIntentId,
         status: 'COMPLETED',
       },
     });
 
-    // Update booking status to PAID
     await this.prisma.booking.update({
-      where: { id: bookingId },
+      where: { id: booking.id },
       data: { status: BookingStatus.PAID },
     });
 
-    this.logger.log(`Payment succeeded for booking: ${bookingId}`);
+    const biddingWindowHours = await this.systemSettingsService.getSettingOrDefault(
+      'DEFAULT_BIDDING_WINDOW_HOURS',
+      24,
+    );
+    const job = await this.jobsCreationService.createJobForBooking(booking.id, biddingWindowHours);
+    await this.jobsCreationService.broadcastJobToOperators(job.id, booking);
+
+    // Send booking confirmation email to customer
+    try {
+      await this.notificationsService.sendBookingConfirmation({
+        customerId: booking.customerId,
+        bookingReference: booking.bookingReference,
+        pickupAddress: booking.pickupAddress,
+        dropoffAddress: booking.dropoffAddress,
+        pickupDatetime: booking.pickupDatetime,
+        vehicleType: booking.vehicleType,
+        passengerCount: booking.passengerCount,
+        totalPrice: `£${Number(booking.customerPrice).toFixed(2)}`,
+      });
+      this.logger.log(`Booking confirmation sent for: ${booking.bookingReference}`);
+    } catch (error) {
+      this.logger.error(`Failed to send booking confirmation for ${booking.bookingReference}:`, error);
+    }
+
+    this.logger.log(`Payment succeeded for booking: ${booking.id}, job ${job.id} created`);
+  }
+
+  private async handleBookingGroupPayment(bookingGroup: any, paymentIntentId: string): Promise<void> {
+    for (const booking of bookingGroup.bookings) {
+      await this.prisma.transaction.create({
+        data: {
+          bookingId: booking.id,
+          amount: booking.customerPrice,
+          transactionType: TransactionType.CUSTOMER_PAYMENT,
+          stripeTransactionId: paymentIntentId,
+          status: 'COMPLETED',
+        },
+      });
+
+      await this.prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: BookingStatus.PAID },
+      });
+    }
+
+    const biddingWindowHours = await this.systemSettingsService.getSettingOrDefault(
+      'RETURN_BIDDING_WINDOW_HOURS',
+      2,
+    );
+    for (const booking of bookingGroup.bookings) {
+      const job = await this.jobsCreationService.createJobForBooking(booking.id, biddingWindowHours);
+      await this.jobsCreationService.broadcastJobToOperators(job.id, booking);
+    }
+
+    // Send return journey confirmation email to customer
+    const outbound = bookingGroup.bookings.find((b: any) => b.journeyType === 'OUTBOUND');
+    const returnBooking = bookingGroup.bookings.find((b: any) => b.journeyType === 'RETURN');
+
+    if (outbound && returnBooking) {
+      try {
+        const discountAmount = bookingGroup.discountAmount
+          ? `£${Number(bookingGroup.discountAmount).toFixed(2)}`
+          : '£0.00';
+        await this.notificationsService.sendReturnJourneyConfirmation({
+          customerId: outbound.customerId,
+          groupReference: bookingGroup.groupReference,
+          totalPrice: `£${Number(bookingGroup.totalPrice).toFixed(2)}`,
+          discountAmount,
+          outbound: {
+            bookingReference: outbound.bookingReference,
+            pickupAddress: outbound.pickupAddress,
+            dropoffAddress: outbound.dropoffAddress,
+            pickupDatetime: outbound.pickupDatetime,
+            vehicleType: outbound.vehicleType,
+            passengerCount: outbound.passengerCount,
+            price: `£${Number(outbound.customerPrice).toFixed(2)}`,
+          },
+          returnJourney: {
+            bookingReference: returnBooking.bookingReference,
+            pickupAddress: returnBooking.pickupAddress,
+            dropoffAddress: returnBooking.dropoffAddress,
+            pickupDatetime: returnBooking.pickupDatetime,
+            vehicleType: returnBooking.vehicleType,
+            passengerCount: returnBooking.passengerCount,
+            price: `£${Number(returnBooking.customerPrice).toFixed(2)}`,
+          },
+        });
+        this.logger.log(`Return journey confirmation sent for group: ${bookingGroup.groupReference}`);
+      } catch (error) {
+        this.logger.error(`Failed to send return journey confirmation for ${bookingGroup.groupReference}:`, error);
+      }
+    }
+
+    this.logger.log(`Payment succeeded for booking group: ${bookingGroup.id}, ${bookingGroup.bookings.length} jobs created`);
   }
 
   private async handlePaymentFailed(paymentIntent: any): Promise<void> {

@@ -1,6 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,9 +7,364 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// ============================================================================
-// ENUMS
-// ============================================================================
+model User {
+  id              String           @id @default(cuid())
+  email           String           @unique
+  password        String
+  firstName       String
+  lastName        String
+  phoneNumber     String?
+  role            UserRole
+  isEmailVerified Boolean          @default(false)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  bookingGroups   BookingGroup[]
+  bookings        Booking[]
+  notifications   Notification[]
+  operatorProfile OperatorProfile?
+
+  @@map("users")
+}
+
+model OperatorProfile {
+  id                     String                 @id @default(cuid())
+  userId                 String                 @unique
+  companyName            String
+  registrationNumber     String
+  vatNumber              String?
+  reputationScore        Decimal                @default(5.0) @db.Decimal(3, 2)
+  totalJobs              Int                    @default(0)
+  completedJobs          Int                    @default(0)
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  approvalStatus         OperatorApprovalStatus @default(PENDING)
+  bankAccountName        String?
+  bankAccountNumber      String?
+  bankSortCode           String?
+  businessAddress        String?
+  businessPostcode       String?
+  councilRegistration    String?
+  emergencyContactName   String?
+  emergencyContactPhone  String?
+  fleetSize              Int?
+  operatingLicenseNumber String?
+  vehicleTypes           VehicleType[]
+  bids                   Bid[]
+  documents              Document[]
+  assignedJobs           Job[]                  @relation("AssignedOperator")
+  user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  serviceAreas           ServiceArea[]
+  vehicles               Vehicle[]
+
+  @@index([approvalStatus])
+  @@index([userId])
+  @@map("operator_profiles")
+}
+
+model Vehicle {
+  id                String          @id @default(cuid())
+  operatorId        String
+  vehicleType       VehicleType
+  registrationPlate String
+  make              String
+  model             String
+  year              Int
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("vehicles")
+}
+
+model ServiceArea {
+  id         String          @id @default(cuid())
+  operatorId String
+  postcode   String
+  createdAt  DateTime        @default(now())
+  operator   OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("service_areas")
+}
+
+model Document {
+  id           String          @id @default(cuid())
+  operatorId   String
+  documentType DocumentType
+  fileUrl      String
+  fileName     String
+  uploadedAt   DateTime        @default(now())
+  expiresAt    DateTime?
+  operator     OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("documents")
+}
+
+model CancellationPolicy {
+  id                String   @id @default(cuid())
+  name              String
+  hoursBeforePickup Int      @unique
+  refundPercent     Int
+  description       String?
+  sortOrder         Int      @default(0)
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("cancellation_policies")
+}
+
+model BookingGroup {
+  id             String             @id @default(cuid())
+  groupReference String             @unique
+  customerId     String
+  totalPrice     Decimal            @db.Decimal(10, 2)
+  discountType   DiscountType?
+  discountAmount Decimal?           @db.Decimal(10, 2)
+  status         BookingGroupStatus @default(ACTIVE)
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+  customer       User               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookings       Booking[]
+
+  @@map("booking_groups")
+}
+
+model Booking {
+  id                  String        @id @default(cuid())
+  customerId          String
+  bookingReference    String        @unique
+  pickupAddress       String
+  pickupPostcode      String?
+  pickupLat           Decimal       @db.Decimal(10, 8)
+  pickupLng           Decimal       @db.Decimal(11, 8)
+  dropoffAddress      String
+  dropoffPostcode     String?
+  dropoffLat          Decimal       @db.Decimal(10, 8)
+  dropoffLng          Decimal       @db.Decimal(11, 8)
+  pickupDatetime      DateTime
+  passengerCount      Int
+  luggageCount        Int
+  vehicleType         VehicleType
+  serviceType         ServiceType
+  flightNumber        String?
+  specialRequirements String?
+  customerPrice       Decimal       @db.Decimal(10, 2)
+  status              BookingStatus @default(PENDING_PAYMENT)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  bookingGroupId      String?
+  journeyType         JourneyType   @default(ONE_WAY)
+  linkedBookingId     String?       @unique
+  amendedAt           DateTime?
+  amendmentFee        Decimal?      @db.Decimal(10, 2)
+  boosterSeats        Int           @default(0)
+  cancellationReason  String?
+  cancelledAt         DateTime?
+  childSeats          Int           @default(0)
+  customerEmail       String?
+  customerName        String?
+  customerPhone       String?
+  distanceMiles       Decimal?      @db.Decimal(10, 2)
+  driverArrivedAt     DateTime?
+  durationMinutes     Int?
+  hasMeetAndGreet     Boolean       @default(false)
+  hasPickAndDrop      Boolean       @default(false)
+  markedNoShowAt      DateTime?
+  noShowCharges       Decimal?      @db.Decimal(10, 2)
+  originalPrice       Decimal?      @db.Decimal(10, 2)
+  passengerPickedUpAt DateTime?
+  refundAmount        Decimal?      @db.Decimal(10, 2)
+  refundPercent       Int?
+  terminal            String?
+  waitingCharges      Decimal?      @db.Decimal(10, 2)
+  bookingGroup        BookingGroup? @relation(fields: [bookingGroupId], references: [id])
+  customer            User          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  linkedBooking       Booking?      @relation("LinkedBookings", fields: [linkedBookingId], references: [id])
+  pairedBooking       Booking?      @relation("LinkedBookings")
+  job                 Job?
+  transactions        Transaction[]
+
+  @@index([customerId])
+  @@index([status])
+  @@index([pickupDatetime])
+  @@index([bookingGroupId])
+  @@map("bookings")
+}
+
+model Job {
+  id                         String           @id @default(cuid())
+  bookingId                  String           @unique
+  status                     JobStatus        @default(OPEN_FOR_BIDDING)
+  biddingWindowClosesAt      DateTime
+  assignedOperatorId         String?
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
+  acceptanceAttemptCount     Int              @default(0)
+  acceptanceWindowClosesAt   DateTime?
+  acceptanceWindowOpensAt    DateTime?
+  biddingWindowDurationHours Int              @default(24)
+  biddingWindowOpensAt       DateTime         @default(now())
+  completedAt                DateTime?
+  currentOfferedBidId        String?
+  payoutEligibleAt           DateTime?
+  payoutProcessedAt          DateTime?
+  payoutStatus               PayoutStatus     @default(NOT_ELIGIBLE)
+  payoutTransactionId        String?
+  platformMargin             Decimal?         @db.Decimal(10, 2)
+  winningBidId               String?          @unique
+  bids                       Bid[]            @relation("JobBids")
+  driverDetails              DriverDetails?
+  assignedOperator           OperatorProfile? @relation("AssignedOperator", fields: [assignedOperatorId], references: [id])
+  booking                    Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  winningBid                 Bid?             @relation("WinningBid", fields: [winningBidId], references: [id])
+
+  @@index([status])
+  @@index([assignedOperatorId])
+  @@index([biddingWindowClosesAt])
+  @@index([acceptanceWindowClosesAt])
+  @@index([payoutStatus])
+  @@map("jobs")
+}
+
+model Bid {
+  id          String          @id @default(cuid())
+  jobId       String
+  operatorId  String
+  bidAmount   Decimal         @db.Decimal(10, 2)
+  status      BidStatus       @default(PENDING)
+  submittedAt DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  notes       String?
+  offeredAt   DateTime?
+  respondedAt DateTime?
+  job         Job             @relation("JobBids", fields: [jobId], references: [id], onDelete: Cascade)
+  operator    OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  wonJob      Job?            @relation("WinningBid")
+
+  @@unique([jobId, operatorId])
+  @@index([operatorId])
+  @@index([status])
+  @@map("bids")
+}
+
+model DriverDetails {
+  id                  String   @id @default(cuid())
+  driverName          String
+  driverPhone         String
+  vehicleRegistration String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  issuingCouncil      String?
+  jobId               String   @unique
+  taxiLicenceNumber   String?
+  vehicleColor        String?
+  vehicleMake         String?
+  vehicleModel        String?
+  job                 Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@map("driver_details")
+}
+
+model Transaction {
+  id                    String            @id @default(cuid())
+  bookingId             String
+  transactionType       TransactionType
+  amount                Decimal           @db.Decimal(10, 2)
+  stripeTransactionId   String?
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+  completedAt           DateTime?
+  currency              String            @default("GBP")
+  description           String?
+  metadata              Json?
+  stripePaymentIntentId String?
+  status                TransactionStatus @default(PENDING)
+  booking               Booking           @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@index([transactionType])
+  @@index([status])
+  @@map("transactions")
+}
+
+model PricingRule {
+  id          String       @id @default(cuid())
+  ruleType    String
+  vehicleType VehicleType?
+  baseValue   Decimal      @db.Decimal(10, 2)
+  description String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  airportCode String?
+  endDate     DateTime?
+  endTime     String?
+  percentage  Decimal?     @db.Decimal(5, 2)
+  startDate   DateTime?
+  startTime   String?
+
+  @@index([ruleType])
+  @@index([isActive])
+  @@map("pricing_rules")
+}
+
+model Notification {
+  id             String             @id @default(cuid())
+  userId         String
+  subject        String
+  message        String
+  status         NotificationStatus @default(PENDING)
+  sentAt         DateTime?
+  createdAt      DateTime           @default(now())
+  errorMessage   String?
+  failedAt       DateTime?
+  metadata       Json?
+  recipientEmail String?
+  recipientPhone String?
+  templateId     String?
+  type           NotificationType   @default(EMAIL)
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([type])
+  @@map("notifications")
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  category    String
+  key         String   @unique
+  value       String
+  dataType    String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+  @@map("system_settings")
+}
+
+model VehicleCapacity {
+  id                       String      @id @default(cuid())
+  vehicleType              VehicleType @unique
+  maxPassengers            Int
+  maxPassengersHandOnly    Int?
+  maxSuitcases             Int
+  maxHandLuggage           Int         @default(2)
+  rateReductionPer100Miles Decimal?    @db.Decimal(5, 2)
+  exampleModels            String
+  description              String?
+  isActive                 Boolean     @default(true)
+  createdAt                DateTime    @default(now())
+  updatedAt                DateTime    @updatedAt
+
+  @@map("vehicle_capacities")
+}
 
 enum UserRole {
   CUSTOMER
@@ -28,6 +380,7 @@ enum BookingStatus {
   COMPLETED
   CANCELLED
   REFUNDED
+  NO_SHOW
 }
 
 enum JobStatus {
@@ -38,6 +391,7 @@ enum JobStatus {
   IN_PROGRESS
   COMPLETED
   CANCELLED
+  PENDING_ACCEPTANCE
 }
 
 enum BidStatus {
@@ -45,6 +399,9 @@ enum BidStatus {
   WON
   LOST
   WITHDRAWN
+  OFFERED
+  ACCEPTED
+  DECLINED
 }
 
 enum VehicleType {
@@ -53,6 +410,9 @@ enum VehicleType {
   MPV
   EXECUTIVE
   MINIBUS
+  EXECUTIVE_LUXURY
+  EXECUTIVE_PEOPLE_CARRIER
+  GREEN_CAR
 }
 
 enum ServiceType {
@@ -93,6 +453,13 @@ enum TransactionStatus {
   CANCELLED
 }
 
+enum PayoutStatus {
+  NOT_ELIGIBLE
+  PENDING
+  PROCESSING
+  COMPLETED
+}
+
 enum DocumentType {
   OPERATING_LICENSE
   INSURANCE
@@ -100,10 +467,10 @@ enum DocumentType {
 }
 
 enum NotificationStatus {
-  PENDING
   SENT
   FAILED
   BOUNCED
+  PENDING
 }
 
 enum NotificationType {
@@ -117,330 +484,3 @@ enum OperatorApprovalStatus {
   REJECTED
   SUSPENDED
 }
-
-// ============================================================================
-// MODELS
-// ============================================================================
-
-model User {
-  id                String    @id @default(cuid())
-  email             String    @unique
-  password          String
-  firstName         String
-  lastName          String
-  phoneNumber       String?
-  role              UserRole
-  isEmailVerified   Boolean   @default(false)
-  isActive          Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relations
-  operatorProfile   OperatorProfile?
-  bookings          Booking[]
-  bookingGroups     BookingGroup[]
-  notifications     Notification[]
-
-  @@map("users")
-}
-
-model OperatorProfile {
-  id                  String    @id @default(cuid())
-  userId              String    @unique
-  companyName         String
-  registrationNumber  String
-  vatNumber           String?
-  approvalStatus      OperatorApprovalStatus @default(PENDING)
-  reputationScore     Decimal   @default(5.0) @db.Decimal(3, 2)
-  totalJobs           Int       @default(0)
-  completedJobs       Int       @default(0)
-
-  // Bank details for payouts
-  bankAccountName     String?
-  bankAccountNumber   String?
-  bankSortCode        String?
-
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  // Relations
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  vehicles            Vehicle[]
-  documents           Document[]
-  serviceAreas        ServiceArea[]
-  bids                Bid[]
-  assignedJobs        Job[]     @relation("AssignedOperator")
-
-  @@index([approvalStatus])
-  @@index([userId])
-  @@map("operator_profiles")
-}
-
-model Vehicle {
-  id                String    @id @default(cuid())
-  operatorId        String
-  vehicleType       VehicleType
-  registrationPlate String
-  make              String
-  model             String
-  year              Int
-  isActive          Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relations
-  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-
-  @@map("vehicles")
-}
-
-model ServiceArea {
-  id                String    @id @default(cuid())
-  operatorId        String
-  postcode          String
-  createdAt         DateTime  @default(now())
-
-  // Relations
-  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-
-  @@map("service_areas")
-}
-
-model Document {
-  id                String    @id @default(cuid())
-  operatorId        String
-  documentType      DocumentType
-  fileUrl           String
-  fileName          String
-  uploadedAt        DateTime  @default(now())
-  expiresAt         DateTime?
-
-  // Relations
-  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-
-  @@map("documents")
-}
-
-// Booking Group for return journeys (links outbound + return bookings)
-model BookingGroup {
-  id                String    @id @default(cuid())
-  groupReference    String    @unique  // TTS-GRP-XXXXXX
-  customerId        String
-  totalPrice        Decimal   @db.Decimal(10, 2)
-  discountType      DiscountType?
-  discountAmount    Decimal?  @db.Decimal(10, 2)
-  status            BookingGroupStatus @default(ACTIVE)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relations
-  customer          User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  bookings          Booking[]
-
-  @@map("booking_groups")
-}
-
-model Booking {
-  id                  String    @id @default(cuid())
-  customerId          String
-  bookingReference    String    @unique
-
-  // Journey type for return journey support
-  journeyType         JourneyType @default(ONE_WAY)
-  bookingGroupId      String?    // Null for one-way, set for return journeys
-  linkedBookingId     String?    @unique  // Links outbound <-> return
-
-  // Journey details
-  pickupAddress       String
-  pickupPostcode      String?   // Optional - not all addresses have postcodes
-  pickupLat           Decimal   @db.Decimal(10, 8)
-  pickupLng           Decimal   @db.Decimal(11, 8)
-  dropoffAddress      String
-  dropoffPostcode     String?   // Optional - not all addresses have postcodes
-  dropoffLat          Decimal   @db.Decimal(10, 8)
-  dropoffLng          Decimal   @db.Decimal(11, 8)
-  pickupDatetime      DateTime
-  passengerCount      Int
-  luggageCount        Int
-  vehicleType         VehicleType
-  serviceType         ServiceType
-  flightNumber        String?
-  specialRequirements String?
-
-  // Quote calculation data (audit trail)
-  distanceMiles       Decimal?  @db.Decimal(10, 2)
-  durationMinutes     Int?
-
-  // Lead passenger contact (may differ from booking user)
-  customerName        String?
-  customerEmail       String?
-  customerPhone       String?
-
-  // Airport-specific fields
-  terminal            String?
-  hasMeetAndGreet     Boolean   @default(false)
-
-  customerPrice       Decimal   @db.Decimal(10, 2)  // Price for THIS leg only
-  status              BookingStatus @default(PENDING_PAYMENT)
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  // Relations
-  customer            User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  bookingGroup        BookingGroup? @relation(fields: [bookingGroupId], references: [id], onDelete: SetNull)
-  linkedBooking       Booking?  @relation("LinkedBookings", fields: [linkedBookingId], references: [id])
-  pairedBooking       Booking?  @relation("LinkedBookings")
-  job                 Job?
-  transactions        Transaction[]
-
-  @@index([customerId])
-  @@index([status])
-  @@index([pickupDatetime])
-  @@index([bookingGroupId])
-  @@map("bookings")
-}
-
-model Job {
-  id                        String    @id @default(cuid())
-  bookingId                 String    @unique
-  status                    JobStatus @default(OPEN_FOR_BIDDING)
-
-  // Bidding window configuration
-  biddingWindowOpensAt      DateTime  @default(now())
-  biddingWindowClosesAt     DateTime
-  biddingWindowDurationHours Int      @default(24)
-
-  // Assignment details
-  assignedOperatorId        String?
-  winningBidId              String?   @unique
-
-  // Financial tracking
-  platformMargin            Decimal?  @db.Decimal(10, 2)  // Customer Price - Winning Bid
-
-  completedAt               DateTime?
-  createdAt                 DateTime  @default(now())
-  updatedAt                 DateTime  @updatedAt
-
-  // Relations
-  booking                   Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  assignedOperator          OperatorProfile? @relation("AssignedOperator", fields: [assignedOperatorId], references: [id])
-  winningBid                Bid?      @relation("WinningBid", fields: [winningBidId], references: [id])
-  bids                      Bid[]     @relation("JobBids")
-  driverDetails             DriverDetails?
-
-  @@index([status])
-  @@index([assignedOperatorId])
-  @@index([biddingWindowClosesAt])
-  @@map("jobs")
-}
-
-model Bid {
-  id                String    @id @default(cuid())
-  jobId             String
-  operatorId        String
-  bidAmount         Decimal   @db.Decimal(10, 2)
-  status            BidStatus @default(PENDING)
-  notes             String?   // Operator notes/comments on bid
-  submittedAt       DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  // Relations
-  job               Job       @relation("JobBids", fields: [jobId], references: [id], onDelete: Cascade)
-  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
-  wonJob            Job?      @relation("WinningBid")
-
-  @@unique([jobId, operatorId])
-  @@index([operatorId])
-  @@index([status])
-  @@map("bids")
-}
-
-// Driver details assigned to a specific job (not operator-level)
-model DriverDetails {
-  id                  String    @id @default(cuid())
-  jobId               String    @unique
-  driverName          String
-  driverPhone         String
-  vehicleRegistration String
-  vehicleMake         String?
-  vehicleModel        String?
-  vehicleColor        String?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-
-  // Relations
-  job                 Job       @relation(fields: [jobId], references: [id], onDelete: Cascade)
-
-  @@map("driver_details")
-}
-
-model Transaction {
-  id                    String    @id @default(cuid())
-  bookingId             String
-  transactionType       TransactionType
-  amount                Decimal   @db.Decimal(10, 2)
-  currency              String    @default("GBP")
-  stripeTransactionId   String?
-  stripePaymentIntentId String?
-  status                TransactionStatus @default(PENDING)
-  description           String?
-  metadata              Json?
-  completedAt           DateTime?
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-
-  // Relations
-  booking               Booking   @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-
-  @@index([bookingId])
-  @@index([transactionType])
-  @@index([status])
-  @@map("transactions")
-}
-
-model PricingRule {
-  id                String    @id @default(cuid())
-  ruleType          String    // BASE_FARE, PER_MILE, TIME_SURCHARGE, HOLIDAY_SURCHARGE, AIRPORT_FEE, etc.
-  vehicleType       VehicleType?
-  baseValue         Decimal   @db.Decimal(10, 2)
-  percentage        Decimal?  @db.Decimal(5, 2)  // For percentage-based rules
-  startTime         String?   // For time-based surcharges (HH:mm format)
-  endTime           String?   // For time-based surcharges (HH:mm format)
-  startDate         DateTime? // For holiday surcharges
-  endDate           DateTime? // For holiday surcharges
-  airportCode       String?   // For airport-specific fees
-  description       String?
-  isActive          Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
-
-  @@index([ruleType])
-  @@index([isActive])
-  @@map("pricing_rules")
-}
-
-model Notification {
-  id                String    @id @default(cuid())
-  userId            String
-  type              NotificationType @default(EMAIL)
-  subject           String
-  message           String
-  recipientEmail    String?
-  recipientPhone    String?
-  templateId        String?
-  metadata          Json?
-  status            NotificationStatus @default(PENDING)
-  sentAt            DateTime?
-  failedAt          DateTime?
-  errorMessage      String?
-  createdAt         DateTime  @default(now())
-
-  // Relations
-  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-  @@index([status])
-  @@index([type])
-  @@map("notifications")
-}
-

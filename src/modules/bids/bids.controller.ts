@@ -122,5 +122,53 @@ export class BidsController {
       message: 'Bid withdrawn successfully',
     };
   }
+
+  /**
+   * POST /bids/:id/accept
+   * Accept a job offer (for winning bid that's been offered)
+   */
+  @Post(':id/accept')
+  @HttpCode(HttpStatus.OK)
+  async acceptBid(@CurrentUser() user: any, @Param('id') id: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const result = await this.bidsService.acceptJobOffer(id, profile.id);
+
+    return {
+      success: true,
+      data: result,
+      message: 'Job accepted successfully. Please submit driver details.',
+    };
+  }
+
+  /**
+   * POST /bids/:id/decline
+   * Decline a job offer (for winning bid that's been offered)
+   */
+  @Post(':id/decline')
+  @HttpCode(HttpStatus.OK)
+  async declineBid(@CurrentUser() user: any, @Param('id') id: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId: user.id },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const result = await this.bidsService.declineJobOffer(id, profile.id);
+
+    return {
+      success: true,
+      data: result,
+      message: 'Job declined. It will be offered to the next bidder.',
+    };
+  }
 }
 

@@ -1,15 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import { StripeService } from '../../integrations/stripe/stripe.service.js';
-import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
-import { BiddingQueueService } from '../../queue/bidding-queue.service.js';
-import { Transaction, TransactionType, JourneyType, JobStatus, OperatorApprovalStatus } from '@prisma/client';
+import { Transaction, TransactionType, JourneyType } from '@prisma/client';
 import type { CreatePaymentIntentDto, ConfirmPaymentDto } from './dto/create-payment-intent.dto.js';
 
-// DTO for booking group payment
 export interface CreateGroupPaymentIntentDto {
   bookingGroupId: string;
-  amount: string; // Total amount for both legs with discount
+  amount: string;
 }
 
 export interface ConfirmGroupPaymentDto {
@@ -24,8 +21,6 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
-    private readonly notificationsService: NotificationsService,
-    private readonly biddingQueueService: BiddingQueueService,
   ) {}
 
   /**
@@ -134,7 +129,6 @@ export class PaymentsService {
   async confirmPayment(
     customerId: string,
     confirmPaymentDto: ConfirmPaymentDto,
-    biddingWindowHours: number = 2,
   ): Promise<Transaction> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: confirmPaymentDto.bookingId },
@@ -163,13 +157,7 @@ export class PaymentsService {
       data: { status: 'PAID' },
     });
 
-    // Create job for bidding
-    const job = await this.createJobForBooking(booking.id, biddingWindowHours);
-
-    // Broadcast to operators in service area
-    await this.broadcastJobToOperators(job.id, booking);
-
-    this.logger.log(`Payment confirmed for booking ${booking.bookingReference}, job ${job.id} created`);
+    this.logger.log(`Payment confirmed for booking ${booking.bookingReference}`);
 
     return transaction;
   }
@@ -181,7 +169,6 @@ export class PaymentsService {
   async confirmGroupPayment(
     customerId: string,
     dto: ConfirmGroupPaymentDto,
-    biddingWindowHours: number = 2,
   ): Promise<{ transactions: Transaction[]; bookingGroupId: string }> {
     const bookingGroup = await this.prisma.bookingGroup.findUnique({
       where: { id: dto.bookingGroupId },
@@ -198,12 +185,10 @@ export class PaymentsService {
       throw new BadRequestException('Booking group does not belong to this customer');
     }
 
-    // Create transactions for each booking in the group
     const transactions = await this.prisma.$transaction(async (tx) => {
       const createdTransactions: Transaction[] = [];
 
       for (const booking of bookingGroup.bookings) {
-        // Create transaction for each booking (proportional amount)
         const transaction = await tx.transaction.create({
           data: {
             bookingId: booking.id,
@@ -215,7 +200,6 @@ export class PaymentsService {
         });
         createdTransactions.push(transaction);
 
-        // Update booking status
         await tx.booking.update({
           where: { id: booking.id },
           data: { status: 'PAID' },
@@ -225,13 +209,7 @@ export class PaymentsService {
       return createdTransactions;
     });
 
-    // Create jobs for both bookings and broadcast
-    for (const booking of bookingGroup.bookings) {
-      const job = await this.createJobForBooking(booking.id, biddingWindowHours);
-      await this.broadcastJobToOperators(job.id, booking);
-    }
-
-    this.logger.log(`Confirmed payment for booking group ${bookingGroup.groupReference}, jobs created`);
+    this.logger.log(`Confirmed payment for booking group ${bookingGroup.groupReference}`);
 
     return {
       transactions,
@@ -352,72 +330,5 @@ export class PaymentsService {
     });
   }
 
-  /**
-   * Create job for a booking and schedule bidding window close
-   */
-  private async createJobForBooking(bookingId: string, biddingWindowHours: number) {
-    const now = new Date();
-    const biddingWindowClosesAt = new Date();
-    biddingWindowClosesAt.setHours(biddingWindowClosesAt.getHours() + biddingWindowHours);
-
-    const job = await this.prisma.job.create({
-      data: {
-        bookingId,
-        status: JobStatus.OPEN_FOR_BIDDING,
-        biddingWindowOpensAt: now,
-        biddingWindowClosesAt,
-        biddingWindowDurationHours: biddingWindowHours,
-      },
-    });
-
-    // Schedule automatic bidding window closure
-    await this.biddingQueueService.scheduleBiddingWindowClose(job.id, biddingWindowClosesAt);
-
-    return job;
-  }
-
-  /**
-   * Broadcast job to all approved operators in service area
-   */
-  private async broadcastJobToOperators(jobId: string, booking: any) {
-    // Find operators with service areas matching pickup postcode prefix
-    const pickupPrefix = booking.pickupPostcode.substring(0, 3).toUpperCase();
-
-    const operators = await this.prisma.operatorProfile.findMany({
-      where: {
-        approvalStatus: OperatorApprovalStatus.APPROVED,
-        serviceAreas: {
-          some: {
-            postcode: {
-              startsWith: pickupPrefix,
-            },
-          },
-        },
-      },
-      select: { id: true },
-    });
-
-    if (operators.length === 0) {
-      this.logger.warn(`No operators found for pickup area ${pickupPrefix}`);
-      return;
-    }
-
-    const operatorIds = operators.map((o) => o.id);
-
-    // Broadcast to all operators
-    await this.notificationsService.broadcastNewJob({
-      jobId,
-      pickupAddress: booking.pickupAddress,
-      pickupPostcode: booking.pickupPostcode,
-      dropoffAddress: booking.dropoffAddress,
-      dropoffPostcode: booking.dropoffPostcode,
-      pickupDatetime: booking.pickupDatetime,
-      vehicleType: booking.vehicleType,
-      maxBidAmount: booking.customerPrice.toString(),
-      operatorIds,
-    });
-
-    this.logger.log(`Broadcast job ${jobId} to ${operatorIds.length} operators`);
-  }
 }
 

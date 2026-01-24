@@ -172,15 +172,66 @@ export class BookingsController {
 
   /**
    * POST /bookings/:id/cancel
-   * Cancel a booking
+   * Cancel a booking with refund calculation based on cancellation policy
    */
   @Post(':id/cancel')
-  async cancel(@Param('id') id: string) {
-    const booking = await this.bookingsService.cancel(id);
+  async cancel(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+  ) {
+    const result = await this.bookingsService.cancelBooking(id, body?.reason);
+    return {
+      success: true,
+      data: {
+        booking: this.bookingsService.formatBookingResponse(result.booking),
+        refundAmount: result.refundAmount,
+        refundPercent: result.refundPercent,
+      },
+      message: `Booking cancelled. Refund: £${result.refundAmount.toFixed(2)} (${result.refundPercent}%)`,
+    };
+  }
+
+  /**
+   * POST /bookings/:id/no-show
+   * Mark a booking as no-show
+   */
+  @Post(':id/no-show')
+  async markNoShow(@Param('id') id: string) {
+    const booking = await this.bookingsService.markAsNoShow(id);
     return {
       success: true,
       data: this.bookingsService.formatBookingResponse(booking),
-      message: 'Booking cancelled successfully',
+      message: 'Booking marked as no-show',
+    };
+  }
+
+  /**
+   * POST /bookings/:id/driver-arrived
+   * Record driver arrival time
+   */
+  @Post(':id/driver-arrived')
+  async recordDriverArrival(@Param('id') id: string) {
+    const booking = await this.bookingsService.recordDriverArrival(id);
+    return {
+      success: true,
+      data: this.bookingsService.formatBookingResponse(booking),
+      message: 'Driver arrival recorded',
+    };
+  }
+
+  /**
+   * POST /bookings/:id/passenger-pickup
+   * Record passenger pickup and calculate waiting charges
+   */
+  @Post(':id/passenger-pickup')
+  async recordPassengerPickup(@Param('id') id: string) {
+    const booking = await this.bookingsService.recordPassengerPickup(id);
+    return {
+      success: true,
+      data: this.bookingsService.formatBookingResponse(booking),
+      message: booking.waitingCharges
+        ? `Passenger picked up. Waiting charges: £${Number(booking.waitingCharges).toFixed(2)}`
+        : 'Passenger picked up. No waiting charges.',
     };
   }
 }

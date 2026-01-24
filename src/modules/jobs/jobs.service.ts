@@ -2,17 +2,21 @@ import { Injectable, NotFoundException, BadRequestException, Logger } from '@nes
 import { PrismaService } from '../../database/prisma.service.js';
 import { Job, JobStatus, JourneyType, BidStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
+import { SystemSettingsService } from '../system-settings/system-settings.service.js';
 
 @Injectable()
 export class JobsService {
   private readonly logger = new Logger(JobsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly systemSettingsService: SystemSettingsService,
+  ) {}
 
   /**
    * Create a job from a single booking
    */
-  async createFromBooking(bookingId: string, biddingWindowHours: number = 24): Promise<Job> {
+  async createFromBooking(bookingId: string, biddingWindowHours?: number): Promise<Job> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
     });
@@ -33,9 +37,13 @@ export class JobsService {
       throw new BadRequestException('Job already exists for this booking');
     }
 
+    // Get bidding window duration from SystemSettings if not provided
+    const windowHours = biddingWindowHours ??
+      await this.systemSettingsService.getSettingOrDefault('DEFAULT_BIDDING_WINDOW_HOURS', 24);
+
     const now = new Date();
     const biddingWindowClosesAt = new Date();
-    biddingWindowClosesAt.setHours(biddingWindowClosesAt.getHours() + biddingWindowHours);
+    biddingWindowClosesAt.setHours(biddingWindowClosesAt.getHours() + windowHours);
 
     const job = await this.prisma.job.create({
       data: {
@@ -43,14 +51,14 @@ export class JobsService {
         status: JobStatus.OPEN_FOR_BIDDING,
         biddingWindowOpensAt: now,
         biddingWindowClosesAt,
-        biddingWindowDurationHours: biddingWindowHours,
+        biddingWindowDurationHours: windowHours,
       },
       include: {
         booking: true,
       },
     });
 
-    this.logger.log(`Created job ${job.id} for booking ${bookingId} (${booking.journeyType})`);
+    this.logger.log(`Created job ${job.id} for booking ${bookingId} (${booking.journeyType}) with ${windowHours}h bidding window`);
 
     return job;
   }
@@ -61,7 +69,7 @@ export class JobsService {
    */
   async createFromBookingGroup(
     bookingGroupId: string,
-    biddingWindowHours: number = 2,
+    biddingWindowHours?: number,
   ): Promise<{ outboundJob: Job; returnJob: Job }> {
     const bookingGroup = await this.prisma.bookingGroup.findUnique({
       where: { id: bookingGroupId },
@@ -92,14 +100,18 @@ export class JobsService {
       throw new BadRequestException('Both bookings must be paid before creating jobs');
     }
 
+    // Get bidding window duration from SystemSettings if not provided
+    const windowHours = biddingWindowHours ??
+      await this.systemSettingsService.getSettingOrDefault('RETURN_BIDDING_WINDOW_HOURS', 2);
+
     // Create jobs for both legs
     const [outboundJob, returnJob] = await Promise.all([
-      this.createFromBooking(outboundBooking.id, biddingWindowHours),
-      this.createFromBooking(returnBooking.id, biddingWindowHours),
+      this.createFromBooking(outboundBooking.id, windowHours),
+      this.createFromBooking(returnBooking.id, windowHours),
     ]);
 
     this.logger.log(
-      `Created jobs for booking group ${bookingGroupId}: outbound=${outboundJob.id}, return=${returnJob.id}`,
+      `Created jobs for booking group ${bookingGroupId}: outbound=${outboundJob.id}, return=${returnJob.id} with ${windowHours}h bidding window`,
     );
 
     return { outboundJob, returnJob };
