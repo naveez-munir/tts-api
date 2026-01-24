@@ -1,6 +1,9 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import { StripeService } from '../../integrations/stripe/stripe.service.js';
+import { SystemSettingsService } from '../system-settings/system-settings.service.js';
+import { BiddingQueueService } from '../../queue/bidding-queue.service.js';
+import { S3Service } from '../../integrations/s3/s3.service.js';
 import {
   JobStatus,
   BidStatus,
@@ -15,12 +18,20 @@ import type { CreatePricingRuleDto, UpdatePricingRuleDto } from './dto/pricing-r
 import type { ListBookingsQueryDto, RefundBookingDto } from './dto/admin-booking.dto.js';
 import type { ManualJobAssignmentDto } from './dto/job-assignment.dto.js';
 import type { ReportsQueryDto } from './dto/reports-query.dto.js';
+import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto } from './dto/customer-management.dto.js';
+import type { UpdateVehicleCapacityDto } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
+import { VehicleType } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly stripeService: StripeService,
+    private readonly systemSettingsService: SystemSettingsService,
+    private readonly biddingQueueService: BiddingQueueService,
+    private readonly s3Service: S3Service,
   ) {}
 
   // =========================================================================
@@ -131,6 +142,7 @@ export class AdminService {
 
     if (search) {
       where.OR = [
+        { id: { equals: search } },
         { companyName: { contains: search, mode: 'insensitive' } },
         { user: { email: { contains: search, mode: 'insensitive' } } },
       ];
@@ -181,16 +193,39 @@ export class AdminService {
   async updateOperatorApproval(operatorId: string, dto: OperatorApprovalDto) {
     const operator = await this.prisma.operatorProfile.findUnique({
       where: { id: operatorId },
+      include: {
+        serviceAreas: true,
+        documents: true,
+      },
     });
 
     if (!operator) {
       throw new NotFoundException('Operator not found');
     }
 
-    // Validate the approval status
     const validStatuses = Object.values(OperatorApprovalStatus);
     if (!validStatuses.includes(dto.approvalStatus as OperatorApprovalStatus)) {
       throw new BadRequestException(`Invalid approval status. Must be one of: ${validStatuses.join(', ')}`);
+    }
+
+    if (dto.approvalStatus === OperatorApprovalStatus.APPROVED) {
+      const missingFields: string[] = [];
+
+      if (!operator.companyName) missingFields.push('companyName');
+      if (!operator.registrationNumber) missingFields.push('registrationNumber');
+      if (!operator.operatingLicenseNumber) missingFields.push('operatingLicenseNumber');
+      if (!operator.bankAccountName) missingFields.push('bankAccountName');
+      if (!operator.bankAccountNumber) missingFields.push('bankAccountNumber');
+      if (!operator.bankSortCode) missingFields.push('bankSortCode');
+      if (!operator.vehicleTypes || operator.vehicleTypes.length === 0) missingFields.push('vehicleTypes');
+      if (!operator.serviceAreas || operator.serviceAreas.length === 0) missingFields.push('serviceAreas');
+      if (!operator.documents || operator.documents.length === 0) missingFields.push('documents');
+
+      if (missingFields.length > 0) {
+        throw new BadRequestException(
+          `Cannot approve operator. Missing required fields: ${missingFields.join(', ')}`,
+        );
+      }
     }
 
     const updated = await this.prisma.operatorProfile.update({
@@ -288,6 +323,510 @@ export class AdminService {
       approvalStatus: updated.approvalStatus,
       reason: reason || 'Application rejected',
       updatedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Get documents for a specific operator (with presigned URLs)
+   */
+  async getOperatorDocuments(operatorId: string) {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+    });
+
+    if (!operator) {
+      throw new NotFoundException('Operator not found');
+    }
+
+    const documents = await this.prisma.document.findMany({
+      where: { operatorId },
+      orderBy: { uploadedAt: 'desc' },
+    });
+
+    // Generate presigned download URLs for each document
+    const documentsWithUrls = await Promise.all(
+      documents.map(async (doc: { id: string; documentType: string; fileName: string; fileUrl: string; uploadedAt: Date; expiresAt: Date | null }) => {
+        let presignedUrl: string | undefined;
+        let urlExpiresIn: number | undefined;
+
+        try {
+          // Extract S3 key from the stored fileUrl
+          const s3Key = this.extractS3KeyFromUrl(doc.fileUrl);
+          if (s3Key) {
+            const downloadData = await this.s3Service.generateDownloadUrl(s3Key);
+            presignedUrl = downloadData.downloadUrl;
+            urlExpiresIn = downloadData.expiresIn;
+          }
+        } catch (error) {
+          this.logger.warn(`Failed to generate download URL for document ${doc.id}: ${error}`);
+        }
+
+        return {
+          id: doc.id,
+          documentType: doc.documentType,
+          fileName: doc.fileName,
+          fileUrl: presignedUrl || doc.fileUrl,
+          uploadedAt: doc.uploadedAt.toISOString(),
+          expiresAt: doc.expiresAt?.toISOString() || null,
+          urlExpiresIn,
+        };
+      }),
+    );
+
+    return documentsWithUrls;
+  }
+
+  /**
+   * Extract S3 key from a stored file URL
+   */
+  private extractS3KeyFromUrl(fileUrl: string): string | null {
+    try {
+      // Handle both full S3 URLs and just the key
+      if (fileUrl.startsWith('operators/')) {
+        return fileUrl;
+      }
+      const url = new URL(fileUrl);
+      // Remove leading slash from pathname
+      return url.pathname.substring(1);
+    } catch {
+      return fileUrl; // Assume it's already a key
+    }
+  }
+
+  // =========================================================================
+  // CUSTOMER MANAGEMENT
+  // =========================================================================
+
+  /**
+   * List all customers with search, filters, and pagination
+   */
+  async listCustomers(query: ListCustomersQueryDto) {
+    const { search, isActive, sortBy, sortOrder, page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.UserWhereInput = {
+      role: 'CUSTOMER', // Only show customers
+    };
+
+    // Filter by active status
+    if (isActive !== undefined) {
+      where.isActive = isActive === 'true';
+    }
+
+    // Search by email, firstName, lastName
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    // Build orderBy
+    const orderBy: Prisma.UserOrderByWithRelationInput = {};
+    orderBy[sortBy] = sortOrder;
+
+    const [customers, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phoneNumber: true,
+          isActive: true,
+          isEmailVerified: true,
+          createdAt: true,
+          _count: {
+            select: {
+              bookings: true,
+            },
+          },
+        },
+        orderBy,
+      }),
+      this.prisma.user.count({ where }),
+    ]);
+
+    // Get customer IDs for batch query
+    const customerIds = customers.map((c) => c.id);
+
+    // Single aggregated query to get total spent for all customers (fixes N+1 issue)
+    const spentByCustomer = await this.prisma.transaction.groupBy({
+      by: ['bookingId'],
+      where: {
+        transactionType: TransactionType.CUSTOMER_PAYMENT,
+        status: TransactionStatus.COMPLETED,
+        booking: {
+          customerId: { in: customerIds },
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    // Get booking-to-customer mapping
+    const bookings = await this.prisma.booking.findMany({
+      where: {
+        customerId: { in: customerIds },
+      },
+      select: {
+        id: true,
+        customerId: true,
+      },
+    });
+
+    // Build customer spending map
+    const customerSpendingMap = new Map<string, number>();
+    spentByCustomer.forEach((item) => {
+      const booking = bookings.find((b) => b.id === item.bookingId);
+      if (booking) {
+        const currentTotal = customerSpendingMap.get(booking.customerId) || 0;
+        customerSpendingMap.set(booking.customerId, currentTotal + Number(item._sum.amount || 0));
+      }
+    });
+
+    // Map customers with stats
+    const customersWithStats = customers.map((customer) => ({
+      id: customer.id,
+      email: customer.email,
+      firstName: customer.firstName,
+      lastName: customer.lastName,
+      phoneNumber: customer.phoneNumber,
+      isActive: customer.isActive,
+      isEmailVerified: customer.isEmailVerified,
+      totalBookings: customer._count.bookings,
+      totalSpent: customerSpendingMap.get(customer.id) || 0,
+      registeredAt: customer.createdAt.toISOString(),
+    }));
+
+    return {
+      customers: customersWithStats,
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Get individual customer details with booking statistics
+   */
+  async getCustomerDetails(customerId: string) {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        isEmailVerified: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.role !== 'CUSTOMER') {
+      throw new BadRequestException('User is not a customer');
+    }
+
+    // Get booking statistics
+    const [totalBookings, completedBookings, cancelledBookings, totalSpent, recentBookings] = await Promise.all([
+      this.prisma.booking.count({
+        where: { customerId },
+      }),
+      this.prisma.booking.count({
+        where: { customerId, status: BookingStatus.COMPLETED },
+      }),
+      this.prisma.booking.count({
+        where: { customerId, status: { in: [BookingStatus.CANCELLED, BookingStatus.REFUNDED] } },
+      }),
+      this.prisma.transaction.aggregate({
+        where: {
+          transactionType: TransactionType.CUSTOMER_PAYMENT,
+          status: TransactionStatus.COMPLETED,
+          booking: { customerId },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.booking.findMany({
+        where: { customerId },
+        take: 5,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          bookingReference: true,
+          status: true,
+          pickupAddress: true,
+          dropoffAddress: true,
+          pickupDatetime: true,
+          customerPrice: true,
+          vehicleType: true,
+          journeyType: true,
+          createdAt: true,
+        },
+      }),
+    ]);
+
+    return {
+      customer: {
+        id: customer.id,
+        email: customer.email,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        phoneNumber: customer.phoneNumber,
+        isActive: customer.isActive,
+        isEmailVerified: customer.isEmailVerified,
+        createdAt: customer.createdAt.toISOString(),
+        updatedAt: customer.updatedAt.toISOString(),
+      },
+      statistics: {
+        totalBookings,
+        completedBookings,
+        cancelledBookings,
+        activeBookings: totalBookings - completedBookings - cancelledBookings,
+        totalSpent: Number(totalSpent._sum.amount) || 0,
+      },
+      recentBookings: recentBookings.map((b) => ({
+        id: b.id,
+        bookingReference: b.bookingReference,
+        status: b.status,
+        pickupAddress: b.pickupAddress,
+        dropoffAddress: b.dropoffAddress,
+        pickupDatetime: b.pickupDatetime.toISOString(),
+        customerPrice: Number(b.customerPrice),
+        vehicleType: b.vehicleType,
+        journeyType: b.journeyType,
+        createdAt: b.createdAt.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * Update customer account status (activate/deactivate)
+   */
+  async updateCustomerStatus(customerId: string, dto: UpdateCustomerStatusDto) {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: { id: true, role: true, isActive: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.role !== 'CUSTOMER') {
+      throw new BadRequestException('User is not a customer');
+    }
+
+    const updated = await this.prisma.user.update({
+      where: { id: customerId },
+      data: { isActive: dto.isActive },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      id: updated.id,
+      email: updated.email,
+      firstName: updated.firstName,
+      lastName: updated.lastName,
+      isActive: updated.isActive,
+      updatedAt: updated.updatedAt.toISOString(),
+      message: dto.isActive ? 'Customer account activated' : 'Customer account deactivated',
+    };
+  }
+
+  /**
+   * Get customer booking history with filters
+   */
+  async getCustomerBookings(customerId: string, query: ListBookingsQueryDto) {
+    // Verify customer exists
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: { id: true, role: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.role !== 'CUSTOMER') {
+      throw new BadRequestException('User is not a customer');
+    }
+
+    const { status, dateFrom, dateTo, search, page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.BookingWhereInput = {
+      customerId, // Filter by customer
+    };
+
+    if (status) {
+      where.status = status as BookingStatus;
+    }
+
+    if (dateFrom || dateTo) {
+      where.pickupDatetime = {};
+      if (dateFrom) where.pickupDatetime.gte = new Date(dateFrom);
+      if (dateTo) where.pickupDatetime.lte = new Date(dateTo);
+    }
+
+    if (search) {
+      where.OR = [
+        { bookingReference: { contains: search, mode: 'insensitive' } },
+        { pickupAddress: { contains: search, mode: 'insensitive' } },
+        { dropoffAddress: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [bookings, total] = await Promise.all([
+      this.prisma.booking.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          job: {
+            include: {
+              bids: { orderBy: { bidAmount: 'asc' }, take: 1 },
+              assignedOperator: { select: { companyName: true } },
+            },
+          },
+          transactions: true,
+          bookingGroup: { select: { id: true, groupReference: true, status: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.booking.count({ where }),
+    ]);
+
+    return {
+      bookings: bookings.map((b) => ({
+        ...b,
+        customerPrice: Number(b.customerPrice),
+        journeyInfo: {
+          journeyType: b.journeyType,
+          isReturnJourney: b.bookingGroupId !== null,
+          groupReference: b.bookingGroup?.groupReference || null,
+          groupStatus: b.bookingGroup?.status || null,
+        },
+      })),
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  /**
+   * Get customer transaction history
+   */
+  async getCustomerTransactions(customerId: string, query: CustomerTransactionsQueryDto) {
+    // Verify customer exists
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: { id: true, role: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.role !== 'CUSTOMER') {
+      throw new BadRequestException('User is not a customer');
+    }
+
+    const { transactionType, status, dateFrom, dateTo, page, limit } = query;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.TransactionWhereInput = {
+      booking: {
+        customerId, // Filter by customer
+      },
+    };
+
+    if (transactionType) {
+      where.transactionType = transactionType as TransactionType;
+    }
+
+    if (status) {
+      where.status = status as TransactionStatus;
+    }
+
+    if (dateFrom || dateTo) {
+      where.createdAt = {};
+      if (dateFrom) where.createdAt.gte = new Date(dateFrom);
+      if (dateTo) where.createdAt.lte = new Date(dateTo);
+    }
+
+    const [transactions, total, totals] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          booking: {
+            select: {
+              bookingReference: true,
+              pickupAddress: true,
+              dropoffAddress: true,
+              vehicleType: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.transaction.count({ where }),
+      this.prisma.transaction.aggregate({
+        where,
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return {
+      transactions: transactions.map((t) => ({
+        id: t.id,
+        transactionType: t.transactionType,
+        amount: Number(t.amount),
+        currency: t.currency,
+        status: t.status,
+        description: t.description,
+        stripeTransactionId: t.stripeTransactionId,
+        booking: t.booking,
+        createdAt: t.createdAt.toISOString(),
+        completedAt: t.completedAt?.toISOString() || null,
+      })),
+      summary: {
+        totalAmount: Number(totals._sum.amount) || 0,
+        totalTransactions: total,
+      },
+      meta: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -817,7 +1356,7 @@ export class AdminService {
   /**
    * Reopen bidding for a job that had no bids
    */
-  async reopenBidding(jobId: string, biddingWindowHours: number = 24) {
+  async reopenBidding(jobId: string, biddingWindowHours?: number) {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
     });
@@ -830,9 +1369,13 @@ export class AdminService {
       throw new BadRequestException('Can only reopen bidding for jobs with no bids received');
     }
 
+    // Get bidding window duration from SystemSettings if not provided
+    const windowHours = biddingWindowHours ??
+      await this.systemSettingsService.getSettingOrDefault('REOPEN_BIDDING_DEFAULT_HOURS', 24);
+
     const now = new Date();
     const newClosingTime = new Date();
-    newClosingTime.setHours(newClosingTime.getHours() + biddingWindowHours);
+    newClosingTime.setHours(newClosingTime.getHours() + windowHours);
 
     const updated = await this.prisma.job.update({
       where: { id: jobId },
@@ -840,7 +1383,7 @@ export class AdminService {
         status: JobStatus.OPEN_FOR_BIDDING,
         biddingWindowOpensAt: now,
         biddingWindowClosesAt: newClosingTime,
-        biddingWindowDurationHours: biddingWindowHours,
+        biddingWindowDurationHours: windowHours,
       },
     });
 
@@ -879,6 +1422,12 @@ export class AdminService {
 
     if (operator.approvalStatus !== OperatorApprovalStatus.APPROVED) {
       throw new BadRequestException('Operator is not approved');
+    }
+
+    // Cancel scheduled bidding window close (if job was open for bidding)
+    if (job.status === JobStatus.OPEN_FOR_BIDDING) {
+      await this.biddingQueueService.cancelScheduledClose(jobId);
+      this.logger.log(`Cancelled scheduled bidding close for job ${jobId} due to manual assignment`);
     }
 
     // Calculate platform margin
@@ -1172,6 +1721,94 @@ export class AdminService {
         operatorId: p.booking.job?.assignedOperatorId,
         createdAt: p.createdAt.toISOString(),
       })),
+    };
+  }
+
+  // =========================================================================
+  // SYSTEM SETTINGS MANAGEMENT
+  // =========================================================================
+
+  async getAllSystemSettings() {
+    return this.systemSettingsService.getAllSettings();
+  }
+
+  async getSystemSettingsByCategory(category: string) {
+    return this.systemSettingsService.getSettingsByCategory(category);
+  }
+
+  async updateSystemSetting(key: string, value: any): Promise<void> {
+    await this.systemSettingsService.updateSetting(key, value);
+  }
+
+  async bulkUpdateSystemSettings(updates: Array<{ key: string; value: any }>): Promise<void> {
+    await this.systemSettingsService.bulkUpdateSettings(updates);
+  }
+
+  // =========================================================================
+  // VEHICLE CAPACITY MANAGEMENT
+  // =========================================================================
+
+  /**
+   * List all vehicle capacities (including inactive)
+   */
+  async listVehicleCapacities() {
+    const capacities = await this.prisma.vehicleCapacity.findMany({
+      orderBy: { vehicleType: 'asc' },
+    });
+
+    return {
+      vehicleCapacities: capacities.map((c) => ({
+        id: c.id,
+        vehicleType: c.vehicleType,
+        maxPassengers: c.maxPassengers,
+        maxPassengersHandOnly: c.maxPassengersHandOnly,
+        maxSuitcases: c.maxSuitcases,
+        maxHandLuggage: c.maxHandLuggage,
+        exampleModels: c.exampleModels,
+        description: c.description,
+        isActive: c.isActive,
+        createdAt: c.createdAt.toISOString(),
+        updatedAt: c.updatedAt.toISOString(),
+      })),
+    };
+  }
+
+  /**
+   * Update a vehicle capacity configuration
+   */
+  async updateVehicleCapacity(vehicleType: VehicleType, dto: UpdateVehicleCapacityDto) {
+    const existing = await this.prisma.vehicleCapacity.findUnique({
+      where: { vehicleType },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Vehicle capacity for type ${vehicleType} not found`);
+    }
+
+    const updated = await this.prisma.vehicleCapacity.update({
+      where: { vehicleType },
+      data: {
+        maxPassengers: dto.maxPassengers,
+        maxPassengersHandOnly: dto.maxPassengersHandOnly,
+        maxSuitcases: dto.maxSuitcases,
+        maxHandLuggage: dto.maxHandLuggage,
+        exampleModels: dto.exampleModels,
+        description: dto.description,
+        isActive: dto.isActive,
+      },
+    });
+
+    return {
+      id: updated.id,
+      vehicleType: updated.vehicleType,
+      maxPassengers: updated.maxPassengers,
+      maxPassengersHandOnly: updated.maxPassengersHandOnly,
+      maxSuitcases: updated.maxSuitcases,
+      maxHandLuggage: updated.maxHandLuggage,
+      exampleModels: updated.exampleModels,
+      description: updated.description,
+      isActive: updated.isActive,
+      updatedAt: updated.updatedAt.toISOString(),
     };
   }
 }
