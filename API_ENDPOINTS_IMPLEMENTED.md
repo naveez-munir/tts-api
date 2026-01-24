@@ -77,15 +77,30 @@
 
 ---
 
-## 🛠️ Admin (14 endpoints)
-- `GET /api/admin/dashboard` - KPIs, activity, alerts
+## 🛠️ Admin (19 endpoints)
+
+### Customer Management (5 endpoints) ✨ NEW
+- `GET /api/admin/customers` - List all customers with search/filters
+- `GET /api/admin/customers/:id` - Get customer details with statistics
+- `PATCH /api/admin/customers/:id/status` - Activate/deactivate customer account
+- `GET /api/admin/customers/:id/bookings` - Get customer booking history
+- `GET /api/admin/customers/:id/transactions` - Get customer transaction history
+
+### Operator Management (2 endpoints)
 - `GET /api/admin/operators` - List operators with filters
 - `PATCH /api/admin/operators/:id/approval` - Approve/reject/suspend operator
+
+### Booking Management (4 endpoints)
 - `GET /api/admin/bookings` - List bookings with filters (includes journey info)
 - `POST /api/admin/bookings/:id/refund` - Process refund
-- `GET /api/admin/booking-groups` - List booking groups (return journeys) ✨ NEW
-- `GET /api/admin/booking-groups/:id` - Get booking group details ✨ NEW
+- `GET /api/admin/booking-groups` - List booking groups (return journeys)
+- `GET /api/admin/booking-groups/:id` - Get booking group details
+
+### Job Management (1 endpoint)
 - `POST /api/admin/jobs/:jobId/assign` - Manual job assignment
+
+### Pricing & Reports (7 endpoints)
+- `GET /api/admin/dashboard` - KPIs, activity, alerts
 - `GET /api/admin/pricing-rules` - List pricing rules
 - `POST /api/admin/pricing-rules` - Create pricing rule
 - `PATCH /api/admin/pricing-rules/:id` - Update pricing rule
