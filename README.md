@@ -31,6 +31,41 @@
 $ npm install
 ```
 
+## Database setup
+
+### Initial setup (First time)
+```bash
+# 1. Generate Prisma Client
+$ npx prisma generate
+
+# 2. Run migrations (creates tables)
+$ npx prisma migrate deploy
+
+# 3. Seed production data (admin, settings, vehicle capacities)
+$ npx prisma db seed -- --file prisma/seed.production.ts
+```
+
+### After schema changes
+```bash
+# 1. Create migration (development)
+$ npx prisma migrate dev --name your_migration_name
+
+# 2. Deploy migration (production)
+$ npx prisma migrate deploy
+
+# 3. Regenerate Prisma Client
+$ npx prisma generate
+```
+
+### Useful commands
+```bash
+# Browse database in web UI
+$ npx prisma studio
+
+# Re-seed database (safe to re-run)
+$ npx prisma db seed
+```
+
 ## Compile and run the project
 
 ```bash
