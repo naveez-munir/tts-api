@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   Client,
-  PlaceAutocompleteType,
+  // PlaceAutocompleteType,
   TravelMode,
   UnitSystem,
 } from '@googlemaps/google-maps-services-js';
@@ -62,7 +62,6 @@ export class GoogleMapsService {
           input,
           key: this.apiKey,
           components: ['country:gb'], // Restrict to UK
-          types: PlaceAutocompleteType.address,
           sessiontoken: sessionToken,
         },
       });
