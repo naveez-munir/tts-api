@@ -3,6 +3,7 @@ import {
   Controller,
   Post,
   BadRequestException,
+  Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { UsersService } from '../users/users.service.js';
@@ -12,12 +13,16 @@ import type { RegisterDto } from './dto/register.dto.js';
 import { LoginSchema } from './dto/login.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
+import { ResendService } from '../integrations/resend/resend.service.js';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly resendService: ResendService,
   ) {}
 
   @Post('register')
@@ -28,6 +33,23 @@ export class AuthController {
     try {
       const user = await this.usersService.create(dto);
       const { password: _, ...userWithoutPassword } = user;
+
+      // Send welcome email (non-blocking - don't wait for email to complete)
+      if (user.role === 'CUSTOMER') {
+        this.resendService
+          .sendWelcomeEmail(user.email, {
+            firstName: user.firstName,
+            lastName: user.lastName,
+            email: user.email,
+          })
+          .catch((error) => {
+            this.logger.error(
+              `Failed to send welcome email to ${user.email}`,
+              error,
+            );
+          });
+      }
+
       return {
         success: true,
         data: userWithoutPassword,

@@ -78,6 +78,12 @@ export interface OperatorJobCancellationData {
   pickupDatetime: string;
 }
 
+export interface WelcomeEmailData {
+  firstName: string;
+  lastName: string;
+  email: string;
+}
+
 @Injectable()
 export class ResendService {
   private readonly logger = new Logger(ResendService.name);
@@ -235,6 +241,22 @@ export class ResendService {
     });
   }
 
+  /**
+   * Send welcome email to newly registered customer
+   */
+  async sendWelcomeEmail(
+    email: string,
+    data: WelcomeEmailData,
+  ): Promise<boolean> {
+    const html = this.getWelcomeEmailHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Welcome to Total Travel Solution Group - Your Journey Starts Here!',
+      html,
+    });
+  }
+
   // HTML Email Templates
   private getBookingConfirmationHtml(data: BookingConfirmationData): string {
     return `
@@ -380,6 +402,182 @@ export class ResendService {
         <p>No further action is required from you for this booking.</p>
         <p>Thank you for your understanding.</p>
       </div>
+    `;
+  }
+
+  private getWelcomeEmailHtml(data: WelcomeEmailData): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to Total Travel Solution Group</title>
+      </head>
+      <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Arial', 'Helvetica', sans-serif;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f4; padding: 20px 0;">
+          <tr>
+            <td align="center">
+              <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+
+                <!-- Header with Brand Color (Teal) -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">
+                      Total Travel Solution Group
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your Trusted Airport Transfer Partner</p>
+                  </td>
+                </tr>
+
+                <!-- Welcome Message -->
+                <tr>
+                  <td style="padding: 40px 30px; text-align: center;">
+                    <h2 style="color: #1e293b; margin: 0 0 20px 0; font-size: 24px;">
+                      Welcome Aboard, ${data.firstName}! 🎉
+                    </h2>
+                    <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Thank you for joining <strong>Total Travel Solution Group</strong>. We're excited to be your partner for all airport transfer needs!
+                    </p>
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.5; margin: 0;">
+                      Your account has been successfully created with email: <strong>${data.email}</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Features Section -->
+                <tr>
+                  <td style="padding: 0 30px 30px 30px;">
+                    <div style="background-color: #f8fafc; border-radius: 8px; padding: 25px;">
+                      <h3 style="color: #1e293b; margin: 0 0 20px 0; font-size: 20px; text-align: center;">
+                        Why Choose Us?
+                      </h3>
+
+                      <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td style="padding: 10px 0;">
+                            <div style="display: flex; align-items: start;">
+                              <span style="color: #0D9488; font-size: 20px; margin-right: 10px;">✓</span>
+                              <div>
+                                <strong style="color: #1e293b; font-size: 15px;">Reliable & Professional Service</strong>
+                                <p style="color: #475569; font-size: 14px; margin: 5px 0 0 0; line-height: 1.4;">
+                                  Licensed drivers and premium vehicles for your comfort and safety.
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style="padding: 10px 0;">
+                            <div style="display: flex; align-items: start;">
+                              <span style="color: #0D9488; font-size: 20px; margin-right: 10px;">✓</span>
+                              <div>
+                                <strong style="color: #1e293b; font-size: 15px;">Best Value Pricing</strong>
+                                <p style="color: #475569; font-size: 14px; margin: 5px 0 0 0; line-height: 1.4;">
+                                  Transparent pricing with no hidden fees. Get the best rates for your journey.
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style="padding: 10px 0;">
+                            <div style="display: flex; align-items: start;">
+                              <span style="color: #0D9488; font-size: 20px; margin-right: 10px;">✓</span>
+                              <div>
+                                <strong style="color: #1e293b; font-size: 15px;">Real-Time Updates</strong>
+                                <p style="color: #475569; font-size: 14px; margin: 5px 0 0 0; line-height: 1.4;">
+                                  Track your booking and receive instant notifications via email & SMS.
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style="padding: 10px 0;">
+                            <div style="display: flex; align-items: start;">
+                              <span style="color: #E11D48; font-size: 20px; margin-right: 10px;">✓</span>
+                              <div>
+                                <strong style="color: #1e293b; font-size: 15px;">Flexible Cancellation Policy</strong>
+                                <p style="color: #475569; font-size: 14px; margin: 5px 0 0 0; line-height: 1.4;">
+                                  Cancel up to <strong style="color: #E11D48;">48 hours</strong> before pickup for a full refund. Plans change, we understand.
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style="padding: 10px 0;">
+                            <div style="display: flex; align-items: start;">
+                              <span style="color: #0D9488; font-size: 20px; margin-right: 10px;">✓</span>
+                              <div>
+                                <strong style="color: #1e293b; font-size: 15px;">Wide Range of Vehicles</strong>
+                                <p style="color: #475569; font-size: 14px; margin: 5px 0 0 0; line-height: 1.4;">
+                                  From saloon cars to 8-seater minibuses. Choose the perfect vehicle for your needs.
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+
+                        <tr>
+                          <td style="padding: 10px 0;">
+                            <div style="display: flex; align-items: start;">
+                              <span style="color: #0D9488; font-size: 20px; margin-right: 10px;">✓</span>
+                              <div>
+                                <strong style="color: #1e293b; font-size: 15px;">24/7 Customer Support</strong>
+                                <p style="color: #475569; font-size: 14px; margin: 5px 0 0 0; line-height: 1.4;">
+                                  Our support team is always available to assist you with any questions.
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      </table>
+                    </div>
+                  </td>
+                </tr>
+
+                <!-- CTA Button -->
+                <tr>
+                  <td style="padding: 0 30px 40px 30px; text-align: center;">
+                    <a href="${frontendUrl}/bookings/new" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                      Book Your First Transfer
+                    </a>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276<br>
+                      You're receiving this email because you created an account with us.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 }
