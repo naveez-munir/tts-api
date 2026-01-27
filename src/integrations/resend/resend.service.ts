@@ -304,148 +304,796 @@ export class ResendService {
   // HTML Email Templates
   private getBookingConfirmationHtml(data: BookingConfirmationData): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">Booking Confirmed</h1>
-        <p>Dear ${data.customerName},</p>
-        <p>Thank you for your booking. Here are your journey details:</p>
-        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
-          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
-          <p><strong>Date & Time:</strong> ${data.pickupDatetime}</p>
-          <p><strong>Vehicle:</strong> ${data.vehicleType}</p>
-          <p><strong>Passengers:</strong> ${data.passengerCount}</p>
-          <p><strong>Total Price:</strong> ${data.totalPrice}</p>
-        </div>
-        <p>We will send you driver details once assigned.</p>
-        <p>Thank you for choosing our service!</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Confirmed</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      ✓ Booking Confirmed
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your journey is all set!</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Dear ${data.customerName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Thank you for booking with Total Travel Solution Group. Your reservation has been confirmed. Here are your journey details:
+                    </p>
+
+                    <!-- Booking Details Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 30px 0;">
+                      <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Booking Reference
+                      </p>
+                      <p style="color: #0D9488; font-size: 28px; font-weight: 700; margin: 0 0 20px 0; font-family: 'Courier New', monospace;">
+                        ${data.bookingReference}
+                      </p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Pickup:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Dropoff:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Date & Time:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Vehicle:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.vehicleType}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Passengers:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.passengerCount}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Total Price:</strong></td>
+                          <td style="padding: 8px 0; color: #0D9488; font-size: 16px; font-weight: 700;">${data.totalPrice}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- Next Steps -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 0 0 30px 0;">
+                      <p style="color: #475569; font-size: 15px; font-weight: 600; margin: 0 0 10px 0;">
+                        📱 What happens next?
+                      </p>
+                      <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0;">
+                        We will send you driver details once a driver has been assigned to your booking. You'll receive another email with driver name, phone number, and vehicle registration.
+                      </p>
+                    </div>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Thank you for choosing us!<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
   private getDriverAssignedHtml(data: DriverAssignedData): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">Driver Assigned</h1>
-        <p>Dear ${data.customerName},</p>
-        <p>Great news! A driver has been assigned to your booking.</p>
-        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
-          <p><strong>Driver Name:</strong> ${data.driverName}</p>
-          <p><strong>Driver Phone:</strong> ${data.driverPhone}</p>
-          <p><strong>Vehicle Registration:</strong> ${data.vehicleRegistration}</p>
-          <p><strong>Pickup Time:</strong> ${data.pickupDatetime}</p>
-          <p><strong>Pickup Address:</strong> ${data.pickupAddress}</p>
-        </div>
-        <p>Your driver will contact you if needed. Have a safe journey!</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Driver Assigned</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      🚗 Driver Assigned
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your driver is ready for your journey</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Dear ${data.customerName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Great news! A driver has been assigned to your booking. Here are the details:
+                    </p>
+
+                    <!-- Booking Reference -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 0 0 20px 0; text-align: center;">
+                      <p style="color: #475569; font-size: 12px; margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                      <p style="color: #0D9488; font-size: 20px; font-weight: 700; margin: 0; font-family: 'Courier New', monospace;">${data.bookingReference}</p>
+                    </div>
+
+                    <!-- Driver Details Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                      <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Driver Details
+                      </p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px; width: 40%;"><strong>Driver Name:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.driverName}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Phone:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">
+                            <a href="tel:${data.driverPhone}" style="color: #0D9488; text-decoration: none; font-weight: 600;">${data.driverPhone}</a>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Vehicle Reg:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px; font-weight: 600;">${data.vehicleRegistration}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- Pickup Details Box -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 0 0 30px 0;">
+                      <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; font-weight: 600;">📍 Pickup Details</p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 6px 0; color: #475569; font-size: 14px; width: 30%;"><strong>Time:</strong></td>
+                          <td style="padding: 6px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 6px 0; color: #475569; font-size: 14px;"><strong>Address:</strong></td>
+                          <td style="padding: 6px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Your driver will contact you if needed. Have a safe journey!
+                    </p>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
   private getNewJobAlertHtml(data: NewJobAlertData): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #333;">New Job Available</h1>
-        <p>Hello ${data.operatorName},</p>
-        <p>A new job is available in your service area:</p>
-        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
-          <p><strong>Date & Time:</strong> ${data.pickupDatetime}</p>
-          <p><strong>Vehicle Required:</strong> ${data.vehicleType}</p>
-          <p><strong>Maximum Bid:</strong> ${data.maxBidAmount}</p>
-        </div>
-        <p>Log in to submit your bid now!</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Job Available</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      📋 New Job Available
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">A new opportunity is waiting for you</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Hello ${data.operatorName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      A new job is available in your service area. Review the details below and submit your bid!
+                    </p>
+
+                    <!-- Job Details Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                      <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Job Details
+                      </p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px; width: 35%;"><strong>Pickup:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Dropoff:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Date & Time:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Vehicle Required:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.vehicleType}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Maximum Bid:</strong></td>
+                          <td style="padding: 8px 0; color: #0D9488; font-size: 16px; font-weight: 700;">${data.maxBidAmount}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- CTA Button -->
+                    <div style="text-align: center; margin: 0 0 30px 0;">
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                        Submit Your Bid
+                      </a>
+                    </div>
+
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0; text-align: center;">
+                      Don't miss out! Submit your competitive bid now to win this job.
+                    </p>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
   private getBidWonHtml(data: BidWonData): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #28a745;">🎉 Congratulations!</h1>
-        <p>Hello ${data.operatorName},</p>
-        <p>Your bid was successful! You have been assigned this job:</p>
-        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
-          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
-          <p><strong>Date & Time:</strong> ${data.pickupDatetime}</p>
-          <p><strong>Your Bid:</strong> ${data.bidAmount}</p>
-        </div>
-        <p>Please log in to submit driver details for this booking.</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Congratulations - Bid Won</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      🎉 Congratulations!
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your bid was successful</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Hello ${data.operatorName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Great news! Your bid was successful and you have been assigned this job. Please submit driver details as soon as possible.
+                    </p>
+
+                    <!-- Booking Reference -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin: 0 0 20px 0; text-align: center;">
+                      <p style="color: #475569; font-size: 12px; margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                      <p style="color: #0D9488; font-size: 24px; font-weight: 700; margin: 0; font-family: 'Courier New', monospace;">${data.bookingReference}</p>
+                    </div>
+
+                    <!-- Job Details Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                      <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Job Details
+                      </p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px; width: 30%;"><strong>Pickup:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Dropoff:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Date & Time:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Your Bid:</strong></td>
+                          <td style="padding: 8px 0; color: #0D9488; font-size: 16px; font-weight: 700;">${data.bidAmount}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- CTA Button -->
+                    <div style="text-align: center; margin: 0 0 30px 0;">
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                        Submit Driver Details
+                      </a>
+                    </div>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
   private getJobOfferHtml(data: JobOfferData): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #f0ad4e;">⏰ Action Required: Confirm Job</h1>
-        <p>Hello ${data.operatorName},</p>
-        <p>Your bid was the lowest! Please confirm acceptance of this job by quoting the booking reference:</p>
-        <div style="background: #fff3cd; padding: 20px; border-radius: 8px; margin: 20px 0; border: 1px solid #ffc107;">
-          <p><strong>Booking Reference:</strong> <span style="font-size: 1.2em; font-weight: bold;">${data.bookingReference}</span></p>
-          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
-          <p><strong>Date & Time:</strong> ${data.pickupDatetime}</p>
-          <p><strong>Your Bid:</strong> ${data.bidAmount}</p>
-        </div>
-        <div style="background: #dc3545; color: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <p style="margin: 0;"><strong>⚠️ Deadline to Accept:</strong> ${data.acceptanceDeadline}</p>
-          <p style="margin: 5px 0 0 0; font-size: 0.9em;">If you do not confirm by this time, the job will be offered to another operator.</p>
-        </div>
-        <p>Log in now to confirm acceptance by quoting the booking reference number.</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Action Required - Confirm Job</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      ⏰ Action Required
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Confirm this job to secure it</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Hello ${data.operatorName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Your bid was the lowest! Please confirm acceptance of this job by quoting the booking reference:
+                    </p>
+
+                    <!-- Booking Reference - Highlighted -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 20px; margin: 0 0 20px 0; text-align: center;">
+                      <p style="color: #475569; font-size: 12px; margin: 0 0 5px 0; text-transform: uppercase; letter-spacing: 1px;">Booking Reference</p>
+                      <p style="color: #0D9488; font-size: 28px; font-weight: 700; margin: 0; font-family: 'Courier New', monospace;">${data.bookingReference}</p>
+                    </div>
+
+                    <!-- Job Details Box -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 0 0 20px 0;">
+                      <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; font-weight: 600;">📋 Job Details</p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 6px 0; color: #475569; font-size: 14px; width: 30%;"><strong>Pickup:</strong></td>
+                          <td style="padding: 6px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 6px 0; color: #475569; font-size: 14px;"><strong>Dropoff:</strong></td>
+                          <td style="padding: 6px 0; color: #334155; font-size: 14px;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 6px 0; color: #475569; font-size: 14px;"><strong>Date & Time:</strong></td>
+                          <td style="padding: 6px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 6px 0; color: #475569; font-size: 14px;"><strong>Your Bid:</strong></td>
+                          <td style="padding: 6px 0; color: #0D9488; font-size: 16px; font-weight: 700;">${data.bidAmount}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- Deadline Warning Box -->
+                    <div style="background-color: #fef2f2; border-left: 4px solid #E11D48; padding: 20px; margin: 0 0 25px 0; border-radius: 4px;">
+                      <p style="color: #991b1b; font-size: 14px; margin: 0 0 5px 0; font-weight: 600;">
+                        ⚠️ Deadline to Accept: ${data.acceptanceDeadline}
+                      </p>
+                      <p style="color: #991b1b; font-size: 13px; margin: 0; line-height: 1.5;">
+                        If you do not confirm by this time, the job will be offered to another operator.
+                      </p>
+                    </div>
+
+                    <!-- CTA Button -->
+                    <div style="text-align: center; margin: 0 0 30px 0;">
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                        Confirm Job Now
+                      </a>
+                    </div>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
   private getBookingCancellationHtml(data: BookingCancellationData): string {
     const refundMessage = data.refundPercent > 0
-      ? `<p style="color: #28a745;"><strong>Refund Amount:</strong> ${data.refundAmount} (${data.refundPercent}% of booking value)</p>`
-      : `<p style="color: #dc3545;"><strong>Refund:</strong> No refund applicable based on cancellation policy</p>`;
+      ? `<tr>
+           <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Refund Amount:</strong></td>
+           <td style="padding: 8px 0; color: #0D9488; font-size: 16px; font-weight: 700;">${data.refundAmount} (${data.refundPercent}%)</td>
+         </tr>`
+      : `<tr>
+           <td colspan="2" style="padding: 8px 0; color: #E11D48; font-size: 14px;">No refund applicable based on cancellation policy</td>
+         </tr>`;
 
     const reasonMessage = data.cancellationReason
-      ? `<p><strong>Reason:</strong> ${data.cancellationReason}</p>`
+      ? `<tr>
+           <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Reason:</strong></td>
+           <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.cancellationReason}</td>
+         </tr>`
       : '';
 
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #dc3545;">Booking Cancelled</h1>
-        <p>Dear ${data.customerName},</p>
-        <p>Your booking has been cancelled. Here are the details:</p>
-        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
-          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
-          <p><strong>Original Date & Time:</strong> ${data.pickupDatetime}</p>
-          ${reasonMessage}
-        </div>
-        <div style="background: #e9ecef; padding: 15px; border-radius: 8px; margin: 20px 0;">
-          <h3 style="margin-top: 0;">Refund Information</h3>
-          ${refundMessage}
-          <p style="font-size: 0.9em; color: #666;">Refunds are processed within 5-10 business days.</p>
-        </div>
-        <p>If you have any questions, please contact our support team.</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Booking Cancelled</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      Booking Cancelled
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">We're sorry to see you go</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Dear ${data.customerName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Your booking has been cancelled. Here are the details:
+                    </p>
+
+                    <!-- Booking Details Box -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 0 0 25px 0;">
+                      <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; font-weight: 600;">📋 Cancelled Booking Details</p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px; width: 35%;"><strong>Reference:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px; font-family: 'Courier New', monospace;">${data.bookingReference}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Pickup:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Dropoff:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Original Date:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                        ${reasonMessage}
+                      </table>
+                    </div>
+
+                    <!-- Refund Information Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 20px; margin: 0 0 25px 0;">
+                      <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        💰 Refund Information
+                      </p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        ${refundMessage}
+                      </table>
+                      <p style="color: #64748b; font-size: 13px; margin: 15px 0 0 0;">
+                        Refunds are processed within 5-10 business days.
+                      </p>
+                    </div>
+
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0;">
+                      If you have any questions about your cancellation or refund, please don't hesitate to contact our support team.
+                    </p>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
   private getOperatorJobCancellationHtml(data: OperatorJobCancellationData): string {
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h1 style="color: #dc3545;">Job Cancelled</h1>
-        <p>Hello ${data.operatorName},</p>
-        <p>Unfortunately, the following job has been cancelled by the customer:</p>
-        <div style="background: #f5f5f5; padding: 20px; border-radius: 8px; margin: 20px 0;">
-          <p><strong>Booking Reference:</strong> ${data.bookingReference}</p>
-          <p><strong>Pickup:</strong> ${data.pickupAddress}</p>
-          <p><strong>Dropoff:</strong> ${data.dropoffAddress}</p>
-          <p><strong>Original Date & Time:</strong> ${data.pickupDatetime}</p>
-        </div>
-        <p>No further action is required from you for this booking.</p>
-        <p>Thank you for your understanding.</p>
-      </div>
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Job Cancelled</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      Job Cancelled
+                    </h1>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Customer has cancelled this booking</p>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Hello ${data.operatorName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Unfortunately, the following job has been cancelled by the customer:
+                    </p>
+
+                    <!-- Job Details Box -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; margin: 0 0 25px 0;">
+                      <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; font-weight: 600;">📋 Cancelled Job Details</p>
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px; width: 35%;"><strong>Reference:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px; font-family: 'Courier New', monospace;">${data.bookingReference}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Pickup:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Dropoff:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #475569; font-size: 14px;"><strong>Original Date:</strong></td>
+                          <td style="padding: 8px 0; color: #334155; font-size: 14px;">${data.pickupDatetime}</td>
+                        </tr>
+                      </table>
+                    </div>
+
+                    <!-- Info Notice -->
+                    <div style="background-color: #f0fdfa; border: 1px solid #0D9488; border-radius: 8px; padding: 15px; margin: 0 0 25px 0;">
+                      <p style="color: #0D9488; font-size: 14px; margin: 0; line-height: 1.5;">
+                        <strong>✓ No action required</strong><br>
+                        You don't need to do anything for this booking. Thank you for your understanding.
+                      </p>
+                    </div>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
     `;
   }
 
@@ -472,7 +1120,7 @@ export class ResendService {
                     <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: bold;">
                       Total Travel Solution Group
                     </h1>
-                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your Trusted Airport Transfer Partner</p>
+                    <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your Trusted Transfer Partner</p>
                   </td>
                 </tr>
 
@@ -483,7 +1131,7 @@ export class ResendService {
                       Welcome Aboard, ${data.firstName}! 🎉
                     </h2>
                     <p style="color: #475569; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
-                      Thank you for joining <strong>Total Travel Solution Group</strong>. We're excited to be your partner for all airport transfer needs!
+                      Thank you for joining <strong>Total Travel Solution Group</strong>. We're excited to be your partner for all your transfer needs!
                     </p>
                     <p style="color: #64748b; font-size: 14px; line-height: 1.5; margin: 0;">
                       Your account has been successfully created with email: <strong>${data.email}</strong>
@@ -766,7 +1414,7 @@ export class ResendService {
                         ✓ Once verified, you'll be able to:
                       </p>
                       <ul style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
-                        <li>Book airport transfers with ease</li>
+                        <li>Book transfers with ease</li>
                         <li>Track your bookings in real-time</li>
                         <li>Access exclusive customer benefits</li>
                         <li>Receive booking confirmations and updates</li>
