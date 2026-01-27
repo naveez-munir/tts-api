@@ -30,6 +30,11 @@ export interface DistanceResult {
   distanceText: string;
 }
 
+export interface WaypointLocation {
+  lat: number;
+  lng: number;
+}
+
 @Injectable()
 export class GoogleMapsService {
   private readonly logger = new Logger(GoogleMapsService.name);
@@ -166,6 +171,69 @@ export class GoogleMapsService {
     }
   }
 
+  /**
+   * Calculate distance and duration for a route with intermediate stops (waypoints)
+   * Uses Google Directions API to get the total route distance through all points
+   */
+  async calculateDistanceWithWaypoints(
+    origin: WaypointLocation,
+    destination: WaypointLocation,
+    waypoints: WaypointLocation[],
+  ): Promise<DistanceResult | null> {
+    // If no waypoints, use the simpler distance matrix
+    if (!waypoints || waypoints.length === 0) {
+      return this.calculateDistance(origin.lat, origin.lng, destination.lat, destination.lng);
+    }
+
+    if (!this.isApiKeyValid()) {
+      return this.getMockDistanceWithWaypoints(origin, destination, waypoints);
+    }
+
+    try {
+      const response = await this.client.directions({
+        params: {
+          origin: { lat: origin.lat, lng: origin.lng },
+          destination: { lat: destination.lat, lng: destination.lng },
+          waypoints: waypoints.map(wp => ({ lat: wp.lat, lng: wp.lng })),
+          optimize: false, // Keep the order as specified by user
+          key: this.apiKey,
+          mode: TravelMode.driving,
+          units: UnitSystem.imperial,
+        },
+      });
+
+      const route = response.data.routes[0];
+      if (!route || !route.legs) {
+        this.logger.warn('Directions API returned no route');
+        return null;
+      }
+
+      // Sum up distance and duration from all legs
+      let totalDistanceMeters = 0;
+      let totalDurationSeconds = 0;
+
+      for (const leg of route.legs) {
+        totalDistanceMeters += leg.distance?.value || 0;
+        totalDurationSeconds += leg.duration?.value || 0;
+      }
+
+      const totalDistanceMiles = totalDistanceMeters / 1609.344;
+      const totalDurationMinutes = Math.ceil(totalDurationSeconds / 60);
+
+      return {
+        distanceMeters: totalDistanceMeters,
+        distanceMiles: totalDistanceMiles,
+        durationSeconds: totalDurationSeconds,
+        durationMinutes: totalDurationMinutes,
+        durationText: `${totalDurationMinutes} mins`,
+        distanceText: `${totalDistanceMiles.toFixed(1)} mi`,
+      };
+    } catch (error) {
+      this.logger.error('Directions API calculation failed', error);
+      return this.getMockDistanceWithWaypoints(origin, destination, waypoints);
+    }
+  }
+
   private isApiKeyValid(): boolean {
     return !!this.apiKey && this.apiKey !== 'your_google_maps_api_key_here';
   }
@@ -249,6 +317,55 @@ export class GoogleMapsService {
 
   private toRad(deg: number): number {
     return deg * (Math.PI / 180);
+  }
+
+  /**
+   * Mock distance calculation for routes with waypoints
+   * Calculates total distance by summing distances between consecutive points
+   */
+  private getMockDistanceWithWaypoints(
+    origin: WaypointLocation,
+    destination: WaypointLocation,
+    waypoints: WaypointLocation[],
+  ): DistanceResult {
+    // Build the full route: origin -> waypoints -> destination
+    const allPoints = [origin, ...waypoints, destination];
+
+    let totalDistanceMiles = 0;
+
+    // Calculate distance between each consecutive pair of points
+    for (let i = 0; i < allPoints.length - 1; i++) {
+      const from = allPoints[i];
+      const to = allPoints[i + 1];
+
+      // Haversine formula
+      const R = 3958.8; // Earth radius in miles
+      const dLat = this.toRad(to.lat - from.lat);
+      const dLng = this.toRad(to.lng - from.lng);
+      const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(this.toRad(from.lat)) *
+          Math.cos(this.toRad(to.lat)) *
+          Math.sin(dLng / 2) *
+          Math.sin(dLng / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      totalDistanceMiles += R * c;
+    }
+
+    const totalDistanceMeters = totalDistanceMiles * 1609.344;
+
+    // Estimate duration: ~30 mph average
+    const durationMinutes = Math.ceil((totalDistanceMiles / 30) * 60);
+    const durationSeconds = durationMinutes * 60;
+
+    return {
+      distanceMeters: totalDistanceMeters,
+      distanceMiles: totalDistanceMiles,
+      durationSeconds,
+      durationMinutes,
+      durationText: `${durationMinutes} mins`,
+      distanceText: `${totalDistanceMiles.toFixed(1)} mi`,
+    };
   }
 }
 

@@ -5,8 +5,9 @@ import {
   Query,
   Body,
   BadRequestException,
+  UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { GoogleMapsService } from './google-maps.service.js';
 import { QuoteService } from './quote.service.js';
 import type { PlacePrediction, GeocodingResult, DistanceResult } from './google-maps.service.js';
@@ -22,6 +23,7 @@ import type {
 } from './quote.service.js';
 
 @Controller('api/maps')
+@UseGuards(ThrottlerGuard)
 export class GoogleMapsController {
   constructor(
     private readonly googleMapsService: GoogleMapsService,

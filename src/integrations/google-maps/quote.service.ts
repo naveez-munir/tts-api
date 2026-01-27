@@ -1,10 +1,18 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
-import { GoogleMapsService } from './google-maps.service.js';
+import { GoogleMapsService, WaypointLocation } from './google-maps.service.js';
 import type { DistanceResult } from './google-maps.service.js';
-import { VehicleType } from '@prisma/client';
+import { VehicleType, ServiceType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { SystemSettingsService } from '../../modules/system-settings/system-settings.service.js';
+
+// Stop point for multi-stop journeys
+export interface StopPoint {
+  address: string;
+  lat: number;
+  lng: number;
+  postcode?: string;
+}
 
 // Single journey quote request
 export interface SingleJourneyQuoteRequest {
@@ -14,10 +22,11 @@ export interface SingleJourneyQuoteRequest {
   dropoffLng: number;
   vehicleType: VehicleType;
   pickupDatetime: string;
+  serviceType?: ServiceType;
   meetAndGreet?: boolean;
-  childSeats?: number;      // Number of child seats needed
-  boosterSeats?: number;    // Number of booster seats needed
-  pickAndDrop?: boolean;    // Pick and drop service
+  childSeats?: number;
+  boosterSeats?: number;
+  stops?: StopPoint[];
 }
 
 // Return journey quote request
@@ -32,12 +41,13 @@ export interface AllVehiclesQuoteRequest {
   dropoffLat: number;
   dropoffLng: number;
   pickupDatetime: string;
+  serviceType?: ServiceType;
   isReturnJourney?: boolean;
   returnDatetime?: string;
   meetAndGreet?: boolean;
   childSeats?: number;
   boosterSeats?: number;
-  pickAndDrop?: boolean;
+  stops?: StopPoint[];
   passengers: number;
   luggage: number;
 }
@@ -54,7 +64,7 @@ export interface VehicleQuoteItem {
   meetAndGreetFee: number;
   childSeatsFee: number;
   boosterSeatsFee: number;
-  pickAndDropFee: number;
+  airportFee: number;
   outboundPrice?: number;
   returnPrice?: number;
   discountAmount?: number;
@@ -79,7 +89,7 @@ export interface SingleJourneyQuote {
   meetAndGreetFee: number;
   childSeatsFee: number;
   boosterSeatsFee: number;
-  pickAndDropFee: number;
+  airportFee: number;
   totalPrice: number;
   distance: DistanceResult | null;
   breakdown: QuoteBreakdown;
@@ -89,10 +99,10 @@ export interface SingleJourneyQuote {
 export interface ReturnJourneyQuote {
   outbound: SingleJourneyQuote;
   returnJourney: SingleJourneyQuote;
-  subtotal: number;           // Sum of both legs
-  discountPercent: number;    // 5%
-  discountAmount: number;     // Actual discount
-  totalPrice: number;         // Final price after discount
+  subtotal: number;
+  discountPercent: number;
+  discountAmount: number;
+  totalPrice: number;
 }
 
 // Legacy response for backward compatibility
@@ -104,7 +114,7 @@ export interface QuoteResponse {
   meetAndGreetFee: number;
   childSeatsFee: number;
   boosterSeatsFee: number;
-  pickAndDropFee: number;
+  airportFee: number;
   returnDiscount: number;
   totalPrice: number;
   distance: DistanceResult | null;
@@ -121,7 +131,7 @@ export interface QuoteBreakdown {
   meetAndGreetFee: string;
   childSeatsFee: string;
   boosterSeatsFee: string;
-  pickAndDropFee: string;
+  airportFee: string;
   returnDiscountPercent: string;
   subtotal: string;
   total: string;
@@ -136,6 +146,9 @@ const RULE_TYPES = {
   HOLIDAY_SURCHARGE: 'HOLIDAY_SURCHARGE',
   MEET_AND_GREET: 'MEET_AND_GREET',
   RETURN_DISCOUNT: 'RETURN_DISCOUNT',
+  CHILD_SEAT: 'CHILD_SEAT',
+  BOOSTER_SEAT: 'BOOSTER_SEAT',
+  AIRPORT_FEE: 'AIRPORT_FEE',
 } as const;
 
 @Injectable()
@@ -147,12 +160,12 @@ export class QuoteService {
   ) {}
 
   async calculateQuote(request: QuoteRequest): Promise<QuoteResponse> {
-    // Get distance from Google Maps
-    const distance = await this.googleMapsService.calculateDistance(
-      request.pickupLat,
-      request.pickupLng,
-      request.dropoffLat,
-      request.dropoffLng,
+    // Get distance from Google Maps - use waypoints if stops are provided
+    const waypoints: WaypointLocation[] = (request.stops || []).map(s => ({ lat: s.lat, lng: s.lng }));
+    const distance = await this.googleMapsService.calculateDistanceWithWaypoints(
+      { lat: request.pickupLat, lng: request.pickupLng },
+      { lat: request.dropoffLat, lng: request.dropoffLng },
+      waypoints,
     );
 
     if (!distance) {
@@ -189,21 +202,19 @@ export class QuoteService {
       : 0;
 
     // Child seats fee (per seat)
-    const childSeatUnitFee = await this.getChildSeatFee();
+    const childSeatUnitFee = await this.getChildSeatFee(pricingRules);
     const childSeatsFee = (request.childSeats ?? 0) * childSeatUnitFee;
 
     // Booster seats fee (per seat)
-    const boosterSeatUnitFee = await this.getBoosterSeatFee();
+    const boosterSeatUnitFee = await this.getBoosterSeatFee(pricingRules);
     const boosterSeatsFee = (request.boosterSeats ?? 0) * boosterSeatUnitFee;
 
-    // Pick and drop fee
-    const pickAndDropFee = request.pickAndDrop
-      ? await this.getPickAndDropFee()
-      : 0;
+    // Airport fee
+    const airportFee = await this.getAirportFee(request.serviceType, pricingRules);
 
     // Calculate subtotal (including all service fees)
     let subtotal = baseFare + distanceCharge + timeSurcharge + holidaySurcharge
-      + meetAndGreetFee + childSeatsFee + boosterSeatsFee + pickAndDropFee;
+      + meetAndGreetFee + childSeatsFee + boosterSeatsFee + airportFee;
 
     // Return journey discount
     let returnDiscount = 0;
@@ -227,7 +238,7 @@ export class QuoteService {
       meetAndGreetFee: this.round(meetAndGreetFee),
       childSeatsFee: this.round(childSeatsFee),
       boosterSeatsFee: this.round(boosterSeatsFee),
-      pickAndDropFee: this.round(pickAndDropFee),
+      airportFee: this.round(airportFee),
       returnDiscount: this.round(returnDiscount),
       totalPrice: this.round(totalPrice),
       distance,
@@ -241,7 +252,7 @@ export class QuoteService {
         meetAndGreetFee: `£${this.round(meetAndGreetFee).toFixed(2)}`,
         childSeatsFee: `£${this.round(childSeatsFee).toFixed(2)}`,
         boosterSeatsFee: `£${this.round(boosterSeatsFee).toFixed(2)}`,
-        pickAndDropFee: `£${this.round(pickAndDropFee).toFixed(2)}`,
+        airportFee: `£${this.round(airportFee).toFixed(2)}`,
         returnDiscountPercent: `${returnDiscountPercent}%`,
         subtotal: `£${this.round(subtotal).toFixed(2)}`,
         total: `£${this.round(totalPrice).toFixed(2)}`,
@@ -430,24 +441,45 @@ export class QuoteService {
   }
 
   /**
-   * Get child seat fee per seat from system settings
+   * Get child seat fee per seat
+   * Priority: PricingRule > SystemSettings > default
    */
-  private async getChildSeatFee(): Promise<number> {
+  private async getChildSeatFee(
+    rules: { ruleType: string; vehicleType: VehicleType | null; baseValue: Decimal }[],
+  ): Promise<number> {
+    const rule = rules.find((r) => r.ruleType === RULE_TYPES.CHILD_SEAT);
+    if (rule) {
+      return Number(rule.baseValue);
+    }
     return await this.systemSettingsService.getSettingOrDefault('CHILD_SEAT_FEE', 10);
   }
 
   /**
-   * Get booster seat fee per seat from system settings
+   * Get booster seat fee per seat
+   * Priority: PricingRule > SystemSettings > default
    */
-  private async getBoosterSeatFee(): Promise<number> {
+  private async getBoosterSeatFee(
+    rules: { ruleType: string; vehicleType: VehicleType | null; baseValue: Decimal }[],
+  ): Promise<number> {
+    const rule = rules.find((r) => r.ruleType === RULE_TYPES.BOOSTER_SEAT);
+    if (rule) {
+      return Number(rule.baseValue);
+    }
     return await this.systemSettingsService.getSettingOrDefault('BOOSTER_SEAT_FEE', 5);
   }
 
-  /**
-   * Get pick and drop fee from system settings
-   */
-  private async getPickAndDropFee(): Promise<number> {
-    return await this.systemSettingsService.getSettingOrDefault('PICK_AND_DROP_FEE', 7);
+  private async getAirportFee(
+    serviceType: ServiceType | undefined,
+    rules: { ruleType: string; vehicleType: VehicleType | null; baseValue: Decimal }[],
+  ): Promise<number> {
+    if (!serviceType || serviceType === ServiceType.POINT_TO_POINT) {
+      return 0;
+    }
+    const rule = rules.find((r) => r.ruleType === RULE_TYPES.AIRPORT_FEE);
+    if (rule) {
+      return Number(rule.baseValue);
+    }
+    return await this.systemSettingsService.getSettingOrDefault('AIRPORT_FEE', 5);
   }
 
   private round(value: number): number {
@@ -458,11 +490,12 @@ export class QuoteService {
    * Calculate quote for a single journey (one-way)
    */
   async calculateSingleJourneyQuote(request: SingleJourneyQuoteRequest): Promise<SingleJourneyQuote> {
-    const distance = await this.googleMapsService.calculateDistance(
-      request.pickupLat,
-      request.pickupLng,
-      request.dropoffLat,
-      request.dropoffLng,
+    // Get distance using waypoints if stops are provided
+    const waypoints: WaypointLocation[] = (request.stops || []).map(s => ({ lat: s.lat, lng: s.lng }));
+    const distance = await this.googleMapsService.calculateDistanceWithWaypoints(
+      { lat: request.pickupLat, lng: request.pickupLng },
+      { lat: request.dropoffLat, lng: request.dropoffLng },
+      waypoints,
     );
 
     if (!distance) {
@@ -492,20 +525,18 @@ export class QuoteService {
       : 0;
 
     // Child seats fee (per seat)
-    const childSeatUnitFee = await this.getChildSeatFee();
+    const childSeatUnitFee = await this.getChildSeatFee(pricingRules);
     const childSeatsFee = (request.childSeats ?? 0) * childSeatUnitFee;
 
     // Booster seats fee (per seat)
-    const boosterSeatUnitFee = await this.getBoosterSeatFee();
+    const boosterSeatUnitFee = await this.getBoosterSeatFee(pricingRules);
     const boosterSeatsFee = (request.boosterSeats ?? 0) * boosterSeatUnitFee;
 
-    // Pick and drop fee
-    const pickAndDropFee = request.pickAndDrop
-      ? await this.getPickAndDropFee()
-      : 0;
+    // Airport fee
+    const airportFee = await this.getAirportFee(request.serviceType, pricingRules);
 
     const totalPrice = baseFare + distanceCharge + timeSurcharge + holidaySurcharge
-      + meetAndGreetFee + childSeatsFee + boosterSeatsFee + pickAndDropFee;
+      + meetAndGreetFee + childSeatsFee + boosterSeatsFee + airportFee;
 
     return {
       baseFare: this.round(baseFare),
@@ -515,7 +546,7 @@ export class QuoteService {
       meetAndGreetFee: this.round(meetAndGreetFee),
       childSeatsFee: this.round(childSeatsFee),
       boosterSeatsFee: this.round(boosterSeatsFee),
-      pickAndDropFee: this.round(pickAndDropFee),
+      airportFee: this.round(airportFee),
       totalPrice: this.round(totalPrice),
       distance,
       breakdown: {
@@ -528,7 +559,7 @@ export class QuoteService {
         meetAndGreetFee: `£${this.round(meetAndGreetFee).toFixed(2)}`,
         childSeatsFee: `£${this.round(childSeatsFee).toFixed(2)}`,
         boosterSeatsFee: `£${this.round(boosterSeatsFee).toFixed(2)}`,
-        pickAndDropFee: `£${this.round(pickAndDropFee).toFixed(2)}`,
+        airportFee: `£${this.round(airportFee).toFixed(2)}`,
         returnDiscountPercent: '0%',
         subtotal: `£${this.round(totalPrice).toFixed(2)}`,
         total: `£${this.round(totalPrice).toFixed(2)}`,
@@ -565,11 +596,12 @@ export class QuoteService {
   }
 
   async calculateAllVehiclesQuote(request: AllVehiclesQuoteRequest): Promise<AllVehiclesQuoteResponse> {
-    const distance = await this.googleMapsService.calculateDistance(
-      request.pickupLat,
-      request.pickupLng,
-      request.dropoffLat,
-      request.dropoffLng,
+    // Get distance using waypoints if stops are provided
+    const waypoints: WaypointLocation[] = (request.stops || []).map(s => ({ lat: s.lat, lng: s.lng }));
+    const distance = await this.googleMapsService.calculateDistanceWithWaypoints(
+      { lat: request.pickupLat, lng: request.pickupLng },
+      { lat: request.dropoffLat, lng: request.dropoffLng },
+      waypoints,
     );
 
     if (!distance) {
@@ -599,19 +631,19 @@ export class QuoteService {
           const outboundQuote = await this.calculateSingleQuoteWithDistance({
             vehicleType: vehicle.vehicleType,
             pickupDatetime: request.pickupDatetime,
+            serviceType: request.serviceType,
             meetAndGreet: request.meetAndGreet,
             childSeats: request.childSeats,
             boosterSeats: request.boosterSeats,
-            pickAndDrop: request.pickAndDrop,
           }, distance, pricingRules);
 
           const returnQuote = await this.calculateSingleQuoteWithDistance({
             vehicleType: vehicle.vehicleType,
             pickupDatetime: request.returnDatetime,
+            serviceType: request.serviceType,
             meetAndGreet: false,
             childSeats: request.childSeats,
             boosterSeats: request.boosterSeats,
-            pickAndDrop: request.pickAndDrop,
           }, distance, pricingRules);
 
           const subtotal = outboundQuote.totalPrice + returnQuote.totalPrice;
@@ -631,7 +663,7 @@ export class QuoteService {
             meetAndGreetFee: outboundQuote.meetAndGreetFee + returnQuote.meetAndGreetFee,
             childSeatsFee: outboundQuote.childSeatsFee + returnQuote.childSeatsFee,
             boosterSeatsFee: outboundQuote.boosterSeatsFee + returnQuote.boosterSeatsFee,
-            pickAndDropFee: outboundQuote.pickAndDropFee + returnQuote.pickAndDropFee,
+            airportFee: outboundQuote.airportFee + returnQuote.airportFee,
             outboundPrice: outboundQuote.totalPrice,
             returnPrice: returnQuote.totalPrice,
             discountAmount,
@@ -640,10 +672,10 @@ export class QuoteService {
           const quote = await this.calculateSingleQuoteWithDistance({
             vehicleType: vehicle.vehicleType,
             pickupDatetime: request.pickupDatetime,
+            serviceType: request.serviceType,
             meetAndGreet: request.meetAndGreet,
             childSeats: request.childSeats,
             boosterSeats: request.boosterSeats,
-            pickAndDrop: request.pickAndDrop,
           }, distance, pricingRules);
 
           return {
@@ -658,7 +690,7 @@ export class QuoteService {
             meetAndGreetFee: quote.meetAndGreetFee,
             childSeatsFee: quote.childSeatsFee,
             boosterSeatsFee: quote.boosterSeatsFee,
-            pickAndDropFee: quote.pickAndDropFee,
+            airportFee: quote.airportFee,
           };
         }
       })
@@ -674,10 +706,10 @@ export class QuoteService {
     options: {
       vehicleType: VehicleType;
       pickupDatetime: string;
+      serviceType?: ServiceType;
       meetAndGreet?: boolean;
       childSeats?: number;
       boosterSeats?: number;
-      pickAndDrop?: boolean;
     },
     distance: DistanceResult,
     pricingRules: { ruleType: string; vehicleType: VehicleType | null; baseValue: Decimal }[],
@@ -700,18 +732,16 @@ export class QuoteService {
       ? await this.getMeetAndGreetFee(pricingRules)
       : 0;
 
-    const childSeatUnitFee = await this.getChildSeatFee();
+    const childSeatUnitFee = await this.getChildSeatFee(pricingRules);
     const childSeatsFee = (options.childSeats ?? 0) * childSeatUnitFee;
 
-    const boosterSeatUnitFee = await this.getBoosterSeatFee();
+    const boosterSeatUnitFee = await this.getBoosterSeatFee(pricingRules);
     const boosterSeatsFee = (options.boosterSeats ?? 0) * boosterSeatUnitFee;
 
-    const pickAndDropFee = options.pickAndDrop
-      ? await this.getPickAndDropFee()
-      : 0;
+    const airportFee = await this.getAirportFee(options.serviceType, pricingRules);
 
     const totalPrice = baseFare + distanceCharge + timeSurcharge + holidaySurcharge
-      + meetAndGreetFee + childSeatsFee + boosterSeatsFee + pickAndDropFee;
+      + meetAndGreetFee + childSeatsFee + boosterSeatsFee + airportFee;
 
     return {
       baseFare: this.round(baseFare),
@@ -721,7 +751,7 @@ export class QuoteService {
       meetAndGreetFee: this.round(meetAndGreetFee),
       childSeatsFee: this.round(childSeatsFee),
       boosterSeatsFee: this.round(boosterSeatsFee),
-      pickAndDropFee: this.round(pickAndDropFee),
+      airportFee: this.round(airportFee),
       totalPrice: this.round(totalPrice),
     };
   }

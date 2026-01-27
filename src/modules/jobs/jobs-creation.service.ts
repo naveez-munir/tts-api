@@ -114,6 +114,10 @@ export class JobsCreationService {
       vehicleType: booking.vehicleType,
       maxBidAmount: booking.customerPrice.toString(),
       operatorIds,
+      stops: booking.stops?.map((s: { address: string; postcode: string | null }) => ({
+        address: s.address,
+        postcode: s.postcode,
+      })),
     });
 
     this.logger.log(

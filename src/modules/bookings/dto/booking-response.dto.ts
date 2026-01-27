@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+// Stop response schema
+export const StopResponseSchema = z.object({
+  id: z.string(),
+  stopOrder: z.number(),
+  address: z.string(),
+  postcode: z.string().nullable(),
+  lat: z.number(),
+  lng: z.number(),
+  notes: z.string().nullable(),
+});
+
+export type StopResponse = z.infer<typeof StopResponseSchema>;
+
 // Single booking response
 export const BookingResponseSchema = z.object({
   id: z.string(),
@@ -23,7 +36,8 @@ export const BookingResponseSchema = z.object({
   // Service options
   childSeats: z.number(),
   boosterSeats: z.number(),
-  hasPickAndDrop: z.boolean(),
+  // Intermediate stops
+  stops: z.array(StopResponseSchema),
   // Pricing and linking
   customerPrice: z.number(),
   linkedBookingId: z.string().nullable(),

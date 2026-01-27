@@ -85,7 +85,11 @@ export class JobsController {
           biddingWindowClosesAt: { gt: now },
         },
         include: {
-          booking: true,
+          booking: {
+            include: {
+              stops: { orderBy: { stopOrder: 'asc' } },
+            },
+          },
           bids: {
             where: { operatorId: profile.id },
             select: { id: true, bidAmount: true, status: true },
@@ -124,7 +128,11 @@ export class JobsController {
           },
         },
         include: {
-          booking: true,
+          booking: {
+            include: {
+              stops: { orderBy: { stopOrder: 'asc' } },
+            },
+          },
           bids: {
             where: { operatorId: profile.id },
             select: { id: true, bidAmount: true, status: true },
@@ -163,7 +171,11 @@ export class JobsController {
         },
       },
       include: {
-        booking: true,
+        booking: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
         winningBid: true,
         driverDetails: true,
       },
@@ -242,7 +254,13 @@ export class JobsController {
 
     const job = await this.prisma.job.findUnique({
       where: { id },
-      include: { booking: true },
+      include: {
+        booking: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
+      },
     });
 
     if (!job) {
@@ -283,7 +301,14 @@ export class JobsController {
     const updatedJob = await this.prisma.job.update({
       where: { id },
       data: { status: JobStatus.IN_PROGRESS },
-      include: { booking: true, driverDetails: true },
+      include: {
+        booking: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
+        driverDetails: true,
+      },
     });
 
     // Send driver assignment notification to customer

@@ -713,6 +713,7 @@ export class AdminService {
           },
           transactions: true,
           bookingGroup: { select: { id: true, groupReference: true, status: true } },
+          stops: { orderBy: { stopOrder: 'asc' } },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -872,6 +873,7 @@ export class AdminService {
           },
           transactions: true,
           bookingGroup: { select: { id: true, groupReference: true, status: true } },
+          stops: { orderBy: { stopOrder: 'asc' } },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -1003,6 +1005,7 @@ export class AdminService {
             orderBy: { journeyType: 'asc' },
             include: {
               job: { include: { bids: { orderBy: { bidAmount: 'asc' }, take: 1 } } },
+              stops: { orderBy: { stopOrder: 'asc' } },
             },
           },
         },
@@ -1056,6 +1059,7 @@ export class AdminService {
               },
             },
             transactions: true,
+            stops: { orderBy: { stopOrder: 'asc' } },
           },
         },
       },
@@ -1214,6 +1218,7 @@ export class AdminService {
           include: {
             customer: { select: { email: true, firstName: true, lastName: true, phoneNumber: true } },
             transactions: true,
+            stops: { orderBy: { stopOrder: 'asc' } },
           },
         },
         bids: {

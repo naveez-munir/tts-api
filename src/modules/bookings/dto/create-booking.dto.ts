@@ -1,6 +1,17 @@
 import { z } from 'zod';
 import { VehicleTypeSchema, ServiceTypeSchema } from '../../../common/enums/index.js';
 
+// Schema for intermediate stops
+export const StopSchema = z.object({
+  address: z.string().min(1, 'Stop address is required'),
+  postcode: z.string().optional(),
+  lat: z.number(),
+  lng: z.number(),
+  notes: z.string().optional(),
+});
+
+export type StopDto = z.infer<typeof StopSchema>;
+
 // Base journey schema (shared between outbound and return)
 const JourneySchema = z.object({
   pickupAddress: z.string().min(1, 'Pickup address is required'),
@@ -26,7 +37,9 @@ const JourneySchema = z.object({
   // Service options
   childSeats: z.number().int().min(0).optional().default(0),
   boosterSeats: z.number().int().min(0).optional().default(0),
-  hasPickAndDrop: z.boolean().optional().default(false),
+
+  // Intermediate stops (for multi-stop journeys)
+  stops: z.array(StopSchema).optional().default([]),
 
   // Lead passenger contact details (may differ from booking user)
   customerName: z.string().optional(),

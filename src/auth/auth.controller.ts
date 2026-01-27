@@ -4,8 +4,9 @@ import {
   Post,
   BadRequestException,
   Logger,
+  UseGuards,
 } from '@nestjs/common';
-import { Throttle } from '@nestjs/throttler';
+import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import { UsersService } from '../users/users.service.js';
 import { AuthService } from './auth.service.js';
 import { RegisterSchema } from './dto/register.dto.js';
@@ -26,6 +27,7 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ResendService } from '../integrations/resend/resend.service.js';
 
 @Controller('auth')
+@UseGuards(ThrottlerGuard)
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
 

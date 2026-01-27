@@ -691,6 +691,14 @@ async function main(): Promise<void> {
       description: 'Booster seat rental fee per seat (£)',
       isActive: true,
     },
+    {
+      category: 'SERVICE_FEES',
+      key: 'AIRPORT_FEE',
+      value: '5',
+      dataType: 'NUMBER',
+      description: 'Airport pickup/dropoff fee (£)',
+      isActive: true,
+    },
 
     // ===== BIDDING - Additional Settings =====
     {

@@ -94,7 +94,13 @@ export class StripeWebhookController {
 
     const bookingGroup = await this.prisma.bookingGroup.findUnique({
       where: { id: bookingId },
-      include: { bookings: true },
+      include: {
+        bookings: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
+      },
     });
 
     if (bookingGroup) {
@@ -104,6 +110,9 @@ export class StripeWebhookController {
 
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
+      include: {
+        stops: { orderBy: { stopOrder: 'asc' } },
+      },
     });
 
     if (!booking) {

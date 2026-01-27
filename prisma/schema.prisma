@@ -171,7 +171,6 @@ model Booking {
   driverArrivedAt     DateTime?
   durationMinutes     Int?
   hasMeetAndGreet     Boolean       @default(false)
-  hasPickAndDrop      Boolean       @default(false)
   markedNoShowAt      DateTime?
   noShowCharges       Decimal?      @db.Decimal(10, 2)
   originalPrice       Decimal?      @db.Decimal(10, 2)
@@ -185,6 +184,7 @@ model Booking {
   linkedBooking       Booking?      @relation("LinkedBookings", fields: [linkedBookingId], references: [id])
   pairedBooking       Booking?      @relation("LinkedBookings")
   job                 Job?
+  stops               BookingStop[]
   transactions        Transaction[]
 
   @@index([customerId])
@@ -192,6 +192,23 @@ model Booking {
   @@index([pickupDatetime])
   @@index([bookingGroupId])
   @@map("bookings")
+}
+
+model BookingStop {
+  id        String   @id @default(cuid())
+  bookingId String
+  stopOrder Int
+  address   String
+  postcode  String?
+  lat       Decimal  @db.Decimal(10, 8)
+  lng       Decimal  @db.Decimal(11, 8)
+  notes     String?
+  createdAt DateTime @default(now())
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@index([bookingId])
+  @@map("booking_stops")
 }
 
 model Job {

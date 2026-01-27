@@ -151,7 +151,11 @@ export class JobsService {
     const job = await this.prisma.job.findUnique({
       where: { id },
       include: {
-        booking: true,
+        booking: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
         bids: {
           orderBy: { bidAmount: 'asc' },
         },
@@ -191,7 +195,11 @@ export class JobsService {
         },
       },
       include: {
-        booking: true,
+        booking: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
         bids: true,
       },
       orderBy: {
@@ -208,7 +216,11 @@ export class JobsService {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
       include: {
-        booking: true,
+        booking: {
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
+        },
         bids: {
           orderBy: [
             { bidAmount: 'asc' },

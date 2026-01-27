@@ -53,6 +53,11 @@ export interface DriverAssignmentData {
   groupReference?: string;
 }
 
+export interface JobBroadcastStop {
+  address: string;
+  postcode: string | null;
+}
+
 export interface JobBroadcastData {
   jobId: string;
   pickupAddress: string;
@@ -65,6 +70,7 @@ export interface JobBroadcastData {
   operatorIds: string[];
   journeyType?: 'ONE_WAY' | 'OUTBOUND' | 'RETURN';
   groupReference?: string;
+  stops?: JobBroadcastStop[];
 }
 
 export interface BidWonData {

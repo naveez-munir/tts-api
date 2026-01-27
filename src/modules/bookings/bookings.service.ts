@@ -5,18 +5,19 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 import { QuoteService } from '../../integrations/google-maps/quote.service.js';
 import { StripeService } from '../../integrations/stripe/stripe.service.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
-import type { CreateBookingDto, CreateReturnBookingDto } from './dto/create-booking.dto.js';
+import type { CreateBookingDto, CreateReturnBookingDto, StopDto } from './dto/create-booking.dto.js';
 import type { UpdateBookingDto } from './dto/update-booking.dto.js';
 import type { BookingResponse, BookingGroupResponse, CustomerBookingsResponse } from './dto/booking-response.dto.js';
-import { Booking, BookingStatus, JourneyType, BookingGroup, DiscountType, VehicleType, JobStatus, TransactionType, BidStatus } from '@prisma/client';
+import { Booking, BookingStatus, JourneyType, BookingGroup, DiscountType, VehicleType, JobStatus, TransactionType, BidStatus, BookingStop } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
-// Type for booking with group and linked booking
+// Type for booking with group, linked booking, and stops
 type BookingWithRelations = Booking & {
   bookingGroup?: BookingGroup | null;
   linkedBooking?: Booking | null;
   pairedBooking?: Booking | null;
   customer?: { id: string; firstName: string; lastName: string; email: string; phoneNumber: string | null } | null;
+  stops?: BookingStop[];
 };
 
 // Time window for duplicate detection (in minutes)
@@ -90,7 +91,6 @@ export class BookingsService {
         // Service options
         childSeats: createBookingDto.childSeats ?? 0,
         boosterSeats: createBookingDto.boosterSeats ?? 0,
-        hasPickAndDrop: createBookingDto.hasPickAndDrop ?? false,
         // Lead passenger contact
         customerName: createBookingDto.customerName || null,
         customerEmail: createBookingDto.customerEmail || null,
@@ -100,7 +100,34 @@ export class BookingsService {
       },
     });
 
+    // Create stops if provided
+    if (createBookingDto.stops && createBookingDto.stops.length > 0) {
+      await this.createStops(booking.id, createBookingDto.stops);
+    }
+
     return booking;
+  }
+
+  /**
+   * Create booking stops
+   */
+  private async createStops(
+    bookingId: string,
+    stops: StopDto[],
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    const client = tx || this.prisma;
+    await client.bookingStop.createMany({
+      data: stops.map((stop, index) => ({
+        bookingId,
+        stopOrder: index + 1,
+        address: stop.address,
+        postcode: stop.postcode || null,
+        lat: stop.lat,
+        lng: stop.lng,
+        notes: stop.notes || null,
+      })),
+    });
   }
 
   /**
@@ -195,7 +222,6 @@ export class BookingsService {
           // Service options
           childSeats: dto.outbound.childSeats ?? 0,
           boosterSeats: dto.outbound.boosterSeats ?? 0,
-          hasPickAndDrop: dto.outbound.hasPickAndDrop ?? false,
           // Lead passenger contact
           customerName: dto.outbound.customerName || null,
           customerEmail: dto.outbound.customerEmail || null,
@@ -204,6 +230,11 @@ export class BookingsService {
           customerPrice: new Prisma.Decimal(dto.outbound.customerPrice.toString()),
         },
       });
+
+      // Create stops for outbound if provided
+      if (dto.outbound.stops && dto.outbound.stops.length > 0) {
+        await this.createStops(outboundBooking.id, dto.outbound.stops, tx);
+      }
 
       // 3. Create return booking (linked to outbound)
       const returnBooking = await tx.booking.create({
@@ -234,7 +265,6 @@ export class BookingsService {
           // Service options
           childSeats: dto.returnJourney.childSeats ?? 0,
           boosterSeats: dto.returnJourney.boosterSeats ?? 0,
-          hasPickAndDrop: dto.returnJourney.hasPickAndDrop ?? false,
           // Lead passenger contact
           customerName: dto.returnJourney.customerName || null,
           customerEmail: dto.returnJourney.customerEmail || null,
@@ -243,6 +273,11 @@ export class BookingsService {
           customerPrice: new Prisma.Decimal(dto.returnJourney.customerPrice.toString()),
         },
       });
+
+      // Create stops for return if provided
+      if (dto.returnJourney.stops && dto.returnJourney.stops.length > 0) {
+        await this.createStops(returnBooking.id, dto.returnJourney.stops, tx);
+      }
 
       return { bookingGroup, outboundBooking, returnBooking };
     });
@@ -258,6 +293,7 @@ export class BookingsService {
         linkedBooking: true,
         pairedBooking: true,
         customer: true,
+        stops: { orderBy: { stopOrder: 'asc' } },
       },
     });
 
@@ -276,6 +312,7 @@ export class BookingsService {
         linkedBooking: true,
         pairedBooking: true,
         customer: true,
+        stops: { orderBy: { stopOrder: 'asc' } },
       },
     });
 
@@ -289,12 +326,15 @@ export class BookingsService {
   /**
    * Find booking group by ID
    */
-  async findBookingGroup(groupId: string): Promise<BookingGroup & { bookings: Booking[] }> {
+  async findBookingGroup(groupId: string): Promise<BookingGroup & { bookings: BookingWithRelations[] }> {
     const group = await this.prisma.bookingGroup.findUnique({
       where: { id: groupId },
       include: {
         bookings: {
           orderBy: { journeyType: 'asc' }, // OUTBOUND first, then RETURN
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
         },
       },
     });
@@ -309,12 +349,15 @@ export class BookingsService {
   /**
    * Find booking group by reference
    */
-  async findBookingGroupByReference(groupReference: string): Promise<BookingGroup & { bookings: Booking[] }> {
+  async findBookingGroupByReference(groupReference: string): Promise<BookingGroup & { bookings: BookingWithRelations[] }> {
     const group = await this.prisma.bookingGroup.findUnique({
       where: { groupReference },
       include: {
         bookings: {
           orderBy: { journeyType: 'asc' },
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
         },
       },
     });
@@ -337,6 +380,9 @@ export class BookingsService {
         customerId,
         journeyType: JourneyType.ONE_WAY,
       },
+      include: {
+        stops: { orderBy: { stopOrder: 'asc' } },
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -346,6 +392,9 @@ export class BookingsService {
       include: {
         bookings: {
           orderBy: { journeyType: 'asc' },
+          include: {
+            stops: { orderBy: { stopOrder: 'asc' } },
+          },
         },
       },
       orderBy: { createdAt: 'desc' },
@@ -467,7 +516,18 @@ export class BookingsService {
       // Service options
       childSeats: booking.childSeats,
       boosterSeats: booking.boosterSeats,
-      hasPickAndDrop: booking.hasPickAndDrop,
+      // Intermediate stops
+      stops: (bookingWithRelations.stops || [])
+        .sort((a, b) => a.stopOrder - b.stopOrder)
+        .map((s) => ({
+          id: s.id,
+          stopOrder: s.stopOrder,
+          address: s.address,
+          postcode: s.postcode,
+          lat: Number(s.lat),
+          lng: Number(s.lng),
+          notes: s.notes,
+        })),
       // Pricing and linking
       customerPrice: Number(booking.customerPrice),
       linkedBookingId: booking.linkedBookingId,
@@ -481,7 +541,7 @@ export class BookingsService {
     };
   }
 
-  formatBookingGroupResponse(group: BookingGroup & { bookings: Booking[] }): BookingGroupResponse {
+  formatBookingGroupResponse(group: BookingGroup & { bookings: BookingWithRelations[] }): BookingGroupResponse {
     return {
       id: group.id,
       groupReference: group.groupReference,
@@ -912,6 +972,9 @@ export class BookingsService {
   ): Promise<{ booking: Booking; newPrice: number; amendmentFee: number }> {
     const booking = await this.prisma.booking.findUnique({
       where: { id: bookingId },
+      include: {
+        stops: { orderBy: { stopOrder: 'asc' } },
+      },
     });
 
     if (!booking) {
@@ -935,7 +998,12 @@ export class BookingsService {
         meetAndGreet: false, // Keep existing add-ons
         childSeats: booking.childSeats || 0,
         boosterSeats: booking.boosterSeats || 0,
-        pickAndDrop: booking.hasPickAndDrop || false,
+        stops: booking.stops.map((s) => ({
+          address: s.address,
+          lat: Number(s.lat),
+          lng: Number(s.lng),
+          postcode: s.postcode || undefined,
+        })),
       });
       newPrice = quote.totalPrice;
     }
