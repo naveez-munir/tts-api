@@ -12,6 +12,16 @@ import { RegisterSchema } from './dto/register.dto.js';
 import type { RegisterDto } from './dto/register.dto.js';
 import { LoginSchema } from './dto/login.dto.js';
 import type { LoginDto } from './dto/login.dto.js';
+import { ForgotPasswordSchema } from './dto/forgot-password.dto.js';
+import type { ForgotPasswordDto } from './dto/forgot-password.dto.js';
+import { ResetPasswordSchema } from './dto/reset-password.dto.js';
+import type { ResetPasswordDto } from './dto/reset-password.dto.js';
+import { SendVerificationOtpSchema } from './dto/send-verification-otp.dto.js';
+import type { SendVerificationOtpDto } from './dto/send-verification-otp.dto.js';
+import { VerifyEmailSchema } from './dto/verify-email.dto.js';
+import type { VerifyEmailDto } from './dto/verify-email.dto.js';
+import { ResendOtpSchema } from './dto/resend-otp.dto.js';
+import type { ResendOtpDto } from './dto/resend-otp.dto.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ResendService } from '../integrations/resend/resend.service.js';
 
@@ -81,6 +91,75 @@ export class AuthController {
     return {
       success: true,
       data: result,
+    };
+  }
+
+  @Post('forgot-password')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per 60 seconds
+  async forgotPassword(
+    @Body(new ZodValidationPipe(ForgotPasswordSchema))
+    dto: ForgotPasswordDto,
+  ) {
+    await this.authService.sendPasswordResetOTP(dto.email);
+    return {
+      success: true,
+      message: 'Password reset OTP sent to your email',
+    };
+  }
+
+  @Post('reset-password')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per 60 seconds
+  async resetPassword(
+    @Body(new ZodValidationPipe(ResetPasswordSchema))
+    dto: ResetPasswordDto,
+  ) {
+    await this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
+    return {
+      success: true,
+      message: 'Password reset successfully',
+    };
+  }
+
+  @Post('send-verification-otp')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per 60 seconds
+  async sendVerificationOTP(
+    @Body(new ZodValidationPipe(SendVerificationOtpSchema))
+    dto: SendVerificationOtpDto,
+  ) {
+    await this.authService.sendEmailVerificationOTP(dto.email);
+    return {
+      success: true,
+      message: 'Email verification OTP sent to your email',
+    };
+  }
+
+  @Post('verify-email')
+  @Throttle({ default: { limit: 5, ttl: 60000 } }) // 5 requests per 60 seconds
+  async verifyEmail(
+    @Body(new ZodValidationPipe(VerifyEmailSchema)) dto: VerifyEmailDto,
+  ) {
+    await this.authService.verifyEmail(dto.email, dto.otp);
+    return {
+      success: true,
+      message: 'Email verified successfully',
+    };
+  }
+
+  @Post('resend-otp')
+  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per 60 seconds
+  async resendOTP(
+    @Body(new ZodValidationPipe(ResendOtpSchema)) dto: ResendOtpDto,
+  ) {
+    // Resend OTP based on type
+    if (dto.type === 'PASSWORD_RESET') {
+      await this.authService.sendPasswordResetOTP(dto.email);
+    } else {
+      await this.authService.sendEmailVerificationOTP(dto.email);
+    }
+
+    return {
+      success: true,
+      message: 'OTP resent successfully',
     };
   }
 }

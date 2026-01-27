@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
 import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
+import { OtpService } from './otp.service.js';
 import { JwtStrategy } from './strategies/jwt.strategy.js';
 import { UsersModule } from '../users/users.module.js';
 import { ResendModule } from '../integrations/resend/resend.module.js';
@@ -17,7 +18,7 @@ import { ResendModule } from '../integrations/resend/resend.module.js';
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN || '7d' } as any,
     }),
   ],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, OtpService, JwtStrategy],
   controllers: [AuthController],
 })
 export class AuthModule {}

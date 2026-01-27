@@ -23,6 +23,7 @@ model User {
   bookings        Booking[]
   notifications   Notification[]
   operatorProfile OperatorProfile?
+  otpTokens       OtpToken[]
 
   @@map("users")
 }
@@ -366,6 +367,22 @@ model VehicleCapacity {
   @@map("vehicle_capacities")
 }
 
+model OtpToken {
+  id        String   @id @default(cuid())
+  userId    String
+  email     String
+  otp       String
+  type      OtpType
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([email, type])
+  @@index([expiresAt])
+  @@map("otp_tokens")
+}
+
 enum UserRole {
   CUSTOMER
   OPERATOR
@@ -483,4 +500,9 @@ enum OperatorApprovalStatus {
   APPROVED
   REJECTED
   SUSPENDED
+}
+
+enum OtpType {
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
 }

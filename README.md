@@ -33,7 +33,7 @@ $ npm install
 
 ## Database setup
 
-### Initial setup (First time)
+### Initial setup (First time - Fresh database)
 ```bash
 # 1. Generate Prisma Client
 $ npx prisma generate
@@ -45,7 +45,24 @@ $ npx prisma migrate deploy
 $ npx prisma db seed -- --file prisma/seed.production.ts
 ```
 
-### After schema changes
+### First-time migration on existing production database
+
+If your production database was created using `db push` (no `_prisma_migrations` table exists), you need to baseline it before running migrations:
+
+```bash
+# Step 1: Mark baseline as applied (tells Prisma existing tables are already there)
+$ npx prisma migrate resolve --applied 0_baseline
+
+# Step 2: Apply pending migrations
+$ npx prisma migrate deploy
+```
+
+**Why is this needed?**
+- The `0_baseline` migration represents all tables that existed before we started using migrations
+- Marking it as "applied" tells Prisma these tables already exist, so it won't try to create them again
+- After this one-time setup, future migrations will work normally with just `npx prisma migrate deploy`
+
+### After schema changes (Development)
 ```bash
 # 1. Create migration (development)
 $ npx prisma migrate dev --name your_migration_name
@@ -57,8 +74,17 @@ $ npx prisma migrate deploy
 $ npx prisma generate
 ```
 
+### Deploying migrations to production
+```bash
+# Just run migrate deploy - it will apply any pending migrations
+$ npx prisma migrate deploy
+```
+
 ### Useful commands
 ```bash
+# Check migration status
+$ npx prisma migrate status
+
 # Browse database in web UI
 $ npx prisma studio
 

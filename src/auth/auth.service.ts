@@ -1,6 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service.js';
+import { OtpService } from './otp.service.js';
+import { ResendService } from '../integrations/resend/resend.service.js';
 import * as bcrypt from 'bcrypt';
 import type { User } from '@prisma/client';
 
@@ -20,6 +26,8 @@ export class AuthService {
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
+    private readonly otpService: OtpService,
+    private readonly resendService: ResendService,
   ) {}
 
   async validateUser(
@@ -49,5 +57,137 @@ export class AuthService {
       access_token: this.jwtService.sign(payload),
       user: userWithoutPassword,
     };
+  }
+
+  /**
+   * Send password reset OTP to user's email
+   */
+  async sendPasswordResetOTP(email: string): Promise<void> {
+    // Check if user exists
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User with this email does not exist');
+    }
+
+    // Check cooldown period
+    const canRequest = await this.otpService.canRequestNewOTP(
+      email,
+      'PASSWORD_RESET',
+    );
+    if (!canRequest) {
+      throw new BadRequestException(
+        'Please wait 60 seconds before requesting a new OTP',
+      );
+    }
+
+    // Generate and store OTP
+    const otp = await this.otpService.storeOTP(
+      user.id,
+      email,
+      'PASSWORD_RESET',
+    );
+
+    // Send OTP via email
+    await this.resendService.sendPasswordResetOTP(email, {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      otp,
+    });
+  }
+
+  /**
+   * Reset user password using OTP
+   */
+  async resetPassword(
+    email: string,
+    otp: string,
+    newPassword: string,
+  ): Promise<void> {
+    // Validate OTP
+    const isValid = await this.otpService.validateOTP(
+      email,
+      otp,
+      'PASSWORD_RESET',
+    );
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    // Find user
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Hash new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password
+    await this.usersService.updatePassword(user.id, hashedPassword);
+  }
+
+  /**
+   * Send email verification OTP to user's email
+   */
+  async sendEmailVerificationOTP(email: string): Promise<void> {
+    // Check if user exists
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User with this email does not exist');
+    }
+
+    // Check if already verified
+    if (user.isEmailVerified) {
+      throw new BadRequestException('Email is already verified');
+    }
+
+    // Check cooldown period
+    const canRequest = await this.otpService.canRequestNewOTP(
+      email,
+      'EMAIL_VERIFICATION',
+    );
+    if (!canRequest) {
+      throw new BadRequestException(
+        'Please wait 60 seconds before requesting a new OTP',
+      );
+    }
+
+    // Generate and store OTP
+    const otp = await this.otpService.storeOTP(
+      user.id,
+      email,
+      'EMAIL_VERIFICATION',
+    );
+
+    // Send OTP via email
+    await this.resendService.sendEmailVerificationOTP(email, {
+      firstName: user.firstName,
+      lastName: user.lastName,
+      otp,
+    });
+  }
+
+  /**
+   * Verify user email using OTP
+   */
+  async verifyEmail(email: string, otp: string): Promise<void> {
+    // Validate OTP
+    const isValid = await this.otpService.validateOTP(
+      email,
+      otp,
+      'EMAIL_VERIFICATION',
+    );
+    if (!isValid) {
+      throw new BadRequestException('Invalid or expired OTP');
+    }
+
+    // Find user
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Mark email as verified
+    await this.usersService.markEmailAsVerified(user.id);
   }
 }

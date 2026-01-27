@@ -55,4 +55,18 @@ export class UsersService {
       where: { id },
     });
   }
+
+  async updatePassword(userId: string, hashedPassword: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+  }
+
+  async markEmailAsVerified(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { isEmailVerified: true },
+    });
+  }
 }

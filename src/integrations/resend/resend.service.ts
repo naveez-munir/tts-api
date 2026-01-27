@@ -84,6 +84,18 @@ export interface WelcomeEmailData {
   email: string;
 }
 
+export interface PasswordResetOTPData {
+  firstName: string;
+  lastName: string;
+  otp: string;
+}
+
+export interface EmailVerificationOTPData {
+  firstName: string;
+  lastName: string;
+  otp: string;
+}
+
 @Injectable()
 export class ResendService {
   private readonly logger = new Logger(ResendService.name);
@@ -253,6 +265,38 @@ export class ResendService {
     return this.sendEmail({
       to: email,
       subject: 'Welcome to Total Travel Solution Group - Your Journey Starts Here!',
+      html,
+    });
+  }
+
+  /**
+   * Send password reset OTP email
+   */
+  async sendPasswordResetOTP(
+    email: string,
+    data: PasswordResetOTPData,
+  ): Promise<boolean> {
+    const html = this.getPasswordResetOTPHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Password Reset Request - Your OTP Code',
+      html,
+    });
+  }
+
+  /**
+   * Send email verification OTP email
+   */
+  async sendEmailVerificationOTP(
+    email: string,
+    data: EmailVerificationOTPData,
+  ): Promise<boolean> {
+    const html = this.getEmailVerificationOTPHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: 'Verify Your Email - Your OTP Code',
       html,
     });
   }
@@ -568,6 +612,192 @@ export class ResendService {
                       © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
                       Registered in England & Wales | Company Number: 16910276<br>
                       You're receiving this email because you created an account with us.
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+  }
+
+  private getPasswordResetOTPHtml(data: PasswordResetOTPData): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Password Reset Request</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      Password Reset Request
+                    </h1>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Hello ${data.firstName} ${data.lastName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      We received a request to reset your password. Use the OTP code below to complete the password reset process:
+                    </p>
+
+                    <!-- OTP Code Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 30px; text-align: center; margin: 0 0 30px 0;">
+                      <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Your OTP Code
+                      </p>
+                      <p style="color: #0D9488; font-size: 42px; font-weight: 700; margin: 0; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                        ${data.otp}
+                      </p>
+                      <p style="color: #64748b; font-size: 13px; margin: 15px 0 0 0;">
+                        This code expires in 15 minutes
+                      </p>
+                    </div>
+
+                    <!-- Important Notice -->
+                    <div style="background-color: #fef2f2; border-left: 4px solid #E11D48; padding: 20px; margin: 0 0 30px 0; border-radius: 4px;">
+                      <p style="color: #991b1b; font-size: 14px; margin: 0; line-height: 1.6;">
+                        <strong>Security Notice:</strong> If you didn't request a password reset, please ignore this email or contact our support team if you have concerns about your account security.
+                      </p>
+                    </div>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
+                    </p>
+                  </td>
+                </tr>
+
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+  }
+
+  private getEmailVerificationOTPHtml(data: EmailVerificationOTPData): string {
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Email Verification</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+
+                <!-- Header with Teal Gradient -->
+                <tr>
+                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
+                      Verify Your Email Address
+                    </h1>
+                  </td>
+                </tr>
+
+                <!-- Main Content -->
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+                      Hello ${data.firstName} ${data.lastName},
+                    </p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
+                      Thank you for creating an account with Total Travel Solution Group. To complete your registration and access all features, please verify your email address using the OTP code below:
+                    </p>
+
+                    <!-- OTP Code Box -->
+                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 30px; text-align: center; margin: 0 0 30px 0;">
+                      <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
+                        Your OTP Code
+                      </p>
+                      <p style="color: #0D9488; font-size: 42px; font-weight: 700; margin: 0; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                        ${data.otp}
+                      </p>
+                      <p style="color: #64748b; font-size: 13px; margin: 15px 0 0 0;">
+                        This code expires in 15 minutes
+                      </p>
+                    </div>
+
+                    <!-- Benefits Box -->
+                    <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 25px; margin: 0 0 30px 0;">
+                      <p style="color: #475569; font-size: 15px; font-weight: 600; margin: 0 0 15px 0;">
+                        ✓ Once verified, you'll be able to:
+                      </p>
+                      <ul style="color: #64748b; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
+                        <li>Book airport transfers with ease</li>
+                        <li>Track your bookings in real-time</li>
+                        <li>Access exclusive customer benefits</li>
+                        <li>Receive booking confirmations and updates</li>
+                      </ul>
+                    </div>
+
+                    <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0; padding: 15px; background-color: #fef9c3; border-radius: 6px;">
+                      <strong>Note:</strong> If you didn't create an account with us, please ignore this email or contact our support team.
+                    </p>
+
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
+                      Best regards,<br>
+                      <strong>Total Travel Solution Group Team</strong>
+                    </p>
+                  </td>
+                </tr>
+
+                <!-- Footer -->
+                <tr>
+                  <td style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                    <p style="color: #475569; font-size: 14px; margin: 0 0 10px 0;">
+                      Need help? Contact us at:
+                    </p>
+                    <p style="margin: 5px 0;">
+                      <a href="mailto:support@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 14px;">
+                        support@totaltravelsolutiongroup.com
+                      </a>
+                    </p>
+                    <p style="color: #64748b; font-size: 12px; margin: 20px 0 0 0; line-height: 1.5;">
+                      © ${new Date().getFullYear()} Total Travel Solution Group. All rights reserved.<br>
+                      Registered in England & Wales | Company Number: 16910276
                     </p>
                   </td>
                 </tr>
