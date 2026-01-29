@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Patch,
+  Put,
   Delete,
   Body,
   Param,
@@ -25,6 +26,8 @@ import { CreateVehicleSchema, UpdateVehicleSchema } from './dto/vehicle.dto.js';
 import type { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto.js';
 import { CreateDriverSchema, UpdateDriverSchema } from './dto/driver.dto.js';
 import type { CreateDriverDto, UpdateDriverDto } from './dto/driver.dto.js';
+import { UpdateVehiclePhotosSchema } from './dto/vehicle-photo.dto.js';
+import type { UpdateVehiclePhotosDto } from './dto/vehicle-photo.dto.js';
 
 @Controller('operators')
 @UseGuards(JwtAuthGuard)
@@ -155,9 +158,6 @@ export class OperatorsController {
     };
   }
 
-  /**
-   * Get all vehicles for the operator
-   */
   @Get('vehicles')
   async getVehicles(@CurrentUser() user: any) {
     const vehicles = await this.operatorsService.getVehicles(user.id);
@@ -167,9 +167,18 @@ export class OperatorsController {
     };
   }
 
-  /**
-   * Create a new vehicle
-   */
+  @Get('vehicles/:vehicleId')
+  async getVehicle(
+    @CurrentUser() user: any,
+    @Param('vehicleId') vehicleId: string,
+  ) {
+    const vehicle = await this.operatorsService.getVehicle(user.id, vehicleId);
+    return {
+      success: true,
+      data: vehicle,
+    };
+  }
+
   @Post('vehicles')
   @HttpCode(HttpStatus.CREATED)
   async createVehicle(
@@ -184,9 +193,6 @@ export class OperatorsController {
     };
   }
 
-  /**
-   * Update a vehicle
-   */
   @Patch('vehicles/:vehicleId')
   async updateVehicle(
     @CurrentUser() user: any,
@@ -201,9 +207,6 @@ export class OperatorsController {
     };
   }
 
-  /**
-   * Delete a vehicle
-   */
   @Delete('vehicles/:vehicleId')
   @HttpCode(HttpStatus.OK)
   async deleteVehicle(
@@ -215,6 +218,32 @@ export class OperatorsController {
       success: true,
       data: result,
       message: 'Vehicle deleted successfully',
+    };
+  }
+
+  @Get('vehicles/:vehicleId/photos')
+  async getVehiclePhotos(
+    @CurrentUser() user: any,
+    @Param('vehicleId') vehicleId: string,
+  ) {
+    const photos = await this.operatorsService.getVehiclePhotos(user.id, vehicleId);
+    return {
+      success: true,
+      data: photos,
+    };
+  }
+
+  @Put('vehicles/:vehicleId/photos')
+  async updateVehiclePhotos(
+    @CurrentUser() user: any,
+    @Param('vehicleId') vehicleId: string,
+    @Body(new ZodValidationPipe(UpdateVehiclePhotosSchema)) dto: UpdateVehiclePhotosDto,
+  ) {
+    const photos = await this.operatorsService.updateVehiclePhotos(user.id, vehicleId, dto);
+    return {
+      success: true,
+      data: photos,
+      message: 'Vehicle photos updated successfully',
     };
   }
 

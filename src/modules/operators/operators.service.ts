@@ -1,12 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
-import { OperatorProfile, OperatorApprovalStatus, JobStatus, BidStatus } from '@prisma/client';
+import { OperatorProfile, OperatorApprovalStatus, JobStatus, BidStatus, Driver, Vehicle, VehiclePhotoType } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { RegisterOperatorDto } from './dto/register-operator.dto.js';
 import type { UpdateOperatorProfileDto } from './dto/update-operator-profile.dto.js';
 import type { UpdateBankDetailsDto } from './dto/update-bank-details.dto.js';
 import type { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto.js';
 import type { CreateDriverDto, UpdateDriverDto } from './dto/driver.dto.js';
+import type { UpdateVehiclePhotosDto } from './dto/vehicle-photo.dto.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import { AcceptanceProcessor } from '../../queue/acceptance.processor.js';
 import { S3Service } from '../../integrations/s3/s3.service.js';
@@ -60,6 +61,16 @@ export class OperatorsService {
         },
       });
     }
+
+    // Notify admin about new operator registration
+    this.notificationsService.sendNewOperatorRegistrationToAdmin(profile.id).catch((err) => {
+      console.error(`Failed to send new operator registration notification to admin: ${err.message}`);
+    });
+
+    // Send welcome email to operator
+    this.notificationsService.sendOperatorWelcome(profile.id).catch((err) => {
+      console.error(`Failed to send operator welcome email: ${err.message}`);
+    });
 
     return profile;
   }
@@ -507,9 +518,49 @@ export class OperatorsService {
     }));
   }
 
-  /**
-   * Get all vehicles for an operator
-   */
+  private async generateDriverDocumentUrls(driver: Driver) {
+    const result = { ...driver } as Record<string, unknown>;
+    const documentFields = [
+      'profileImageUrl',
+      'passportUrl',
+      'drivingLicenseFrontUrl',
+      'drivingLicenseBackUrl',
+      'nationalInsuranceDocUrl',
+      'taxiCertificationUrl',
+      'taxiBadgePhotoUrl',
+    ];
+
+    for (const field of documentFields) {
+      const value = driver[field as keyof Driver];
+      if (value && typeof value === 'string') {
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
+        result[field] = downloadUrl;
+      }
+    }
+
+    return result;
+  }
+
+  private async generateVehicleDocumentUrls(vehicle: Vehicle) {
+    const result = { ...vehicle } as Record<string, unknown>;
+    const documentFields = [
+      'logbookUrl',
+      'motCertificateUrl',
+      'insuranceDocumentUrl',
+      'hirePermissionLetterUrl',
+    ];
+
+    for (const field of documentFields) {
+      const value = vehicle[field as keyof Vehicle];
+      if (value && typeof value === 'string') {
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
+        result[field] = downloadUrl;
+      }
+    }
+
+    return result;
+  }
+
   async getVehicles(userId: string) {
     const profile = await this.prisma.operatorProfile.findUnique({
       where: { userId },
@@ -519,15 +570,49 @@ export class OperatorsService {
       throw new NotFoundException('Operator profile not found');
     }
 
-    return this.prisma.vehicle.findMany({
+    const vehicles = await this.prisma.vehicle.findMany({
       where: { operatorId: profile.id },
       orderBy: { createdAt: 'desc' },
+      include: { photos: true },
     });
+
+    return Promise.all(vehicles.map((vehicle) => this.generateVehicleDocumentUrls(vehicle)));
   }
 
-  /**
-   * Create a new vehicle
-   */
+  async getVehicle(userId: string, vehicleId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      include: { photos: true },
+    });
+
+    if (!vehicle) {
+      throw new NotFoundException('Vehicle not found');
+    }
+
+    if (vehicle.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to view this vehicle');
+    }
+
+    const vehicleWithUrls = await this.generateVehicleDocumentUrls(vehicle);
+
+    const photosWithUrls = await Promise.all(
+      vehicle.photos.map(async (photo) => {
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+        return { ...photo, photoUrl: downloadUrl };
+      })
+    );
+
+    return { ...vehicleWithUrls, photos: photosWithUrls };
+  }
+
   async createVehicle(userId: string, dto: CreateVehicleDto) {
     const profile = await this.prisma.operatorProfile.findUnique({
       where: { userId },
@@ -546,6 +631,12 @@ export class OperatorsService {
         model: dto.model,
         year: dto.year,
         color: dto.color,
+        logbookUrl: dto.logbookUrl,
+        motCertificateUrl: dto.motCertificateUrl,
+        motExpiryDate: dto.motExpiryDate ? new Date(dto.motExpiryDate) : null,
+        insuranceDocumentUrl: dto.insuranceDocumentUrl,
+        insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : null,
+        hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
       },
     });
 
@@ -561,9 +652,6 @@ export class OperatorsService {
     return vehicle;
   }
 
-  /**
-   * Update a vehicle
-   */
   async updateVehicle(userId: string, vehicleId: string, dto: UpdateVehicleDto) {
     const profile = await this.prisma.operatorProfile.findUnique({
       where: { userId },
@@ -587,7 +675,21 @@ export class OperatorsService {
 
     return this.prisma.vehicle.update({
       where: { id: vehicleId },
-      data: dto,
+      data: {
+        vehicleType: dto.vehicleType,
+        registrationPlate: dto.registrationPlate,
+        make: dto.make,
+        model: dto.model,
+        year: dto.year,
+        color: dto.color,
+        logbookUrl: dto.logbookUrl,
+        motCertificateUrl: dto.motCertificateUrl,
+        motExpiryDate: dto.motExpiryDate ? new Date(dto.motExpiryDate) : undefined,
+        insuranceDocumentUrl: dto.insuranceDocumentUrl,
+        insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : undefined,
+        hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
+        isActive: dto.isActive,
+      },
     });
   }
 
@@ -645,17 +747,7 @@ export class OperatorsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const driversWithUrls = await Promise.all(
-      drivers.map(async (driver) => {
-        if (driver.profileImageUrl) {
-          const { downloadUrl } = await this.s3Service.generateDownloadUrl(driver.profileImageUrl);
-          return { ...driver, profileImageUrl: downloadUrl };
-        }
-        return driver;
-      })
-    );
-
-    return driversWithUrls;
+    return Promise.all(drivers.map((driver) => this.generateDriverDocumentUrls(driver)));
   }
 
   async getDriver(userId: string, driverId: string) {
@@ -679,12 +771,7 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to view this driver');
     }
 
-    if (driver.profileImageUrl) {
-      const { downloadUrl } = await this.s3Service.generateDownloadUrl(driver.profileImageUrl);
-      return { ...driver, profileImageUrl: downloadUrl };
-    }
-
-    return driver;
+    return this.generateDriverDocumentUrls(driver);
   }
 
   async createDriver(userId: string, dto: CreateDriverDto) {
@@ -705,12 +792,22 @@ export class OperatorsService {
         phoneNumber: dto.phoneNumber,
         profileImageUrl: dto.profileImageUrl,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+        passportUrl: dto.passportUrl,
+        passportExpiry: dto.passportExpiry ? new Date(dto.passportExpiry) : null,
         drivingLicenseNumber: dto.drivingLicenseNumber,
+        drivingLicenseFrontUrl: dto.drivingLicenseFrontUrl,
+        drivingLicenseBackUrl: dto.drivingLicenseBackUrl,
+        drivingLicenseExpiry: dto.drivingLicenseExpiry ? new Date(dto.drivingLicenseExpiry) : null,
+        nationalInsuranceNo: dto.nationalInsuranceNo,
+        nationalInsuranceDocUrl: dto.nationalInsuranceDocUrl,
+        taxiCertificationUrl: dto.taxiCertificationUrl,
+        taxiCertificationExpiry: dto.taxiCertificationExpiry ? new Date(dto.taxiCertificationExpiry) : null,
+        taxiBadgePhotoUrl: dto.taxiBadgePhotoUrl,
+        taxiBadgeExpiry: dto.taxiBadgeExpiry ? new Date(dto.taxiBadgeExpiry) : null,
         phvLicenseNumber: dto.phvLicenseNumber,
         phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : null,
         issuingCouncil: dto.issuingCouncil,
         badgeNumber: dto.badgeNumber,
-        nationalInsuranceNo: dto.nationalInsuranceNo,
       },
     });
   }
@@ -745,12 +842,22 @@ export class OperatorsService {
         phoneNumber: dto.phoneNumber,
         profileImageUrl: dto.profileImageUrl,
         dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+        passportUrl: dto.passportUrl,
+        passportExpiry: dto.passportExpiry ? new Date(dto.passportExpiry) : undefined,
         drivingLicenseNumber: dto.drivingLicenseNumber,
+        drivingLicenseFrontUrl: dto.drivingLicenseFrontUrl,
+        drivingLicenseBackUrl: dto.drivingLicenseBackUrl,
+        drivingLicenseExpiry: dto.drivingLicenseExpiry ? new Date(dto.drivingLicenseExpiry) : undefined,
+        nationalInsuranceNo: dto.nationalInsuranceNo,
+        nationalInsuranceDocUrl: dto.nationalInsuranceDocUrl,
+        taxiCertificationUrl: dto.taxiCertificationUrl,
+        taxiCertificationExpiry: dto.taxiCertificationExpiry ? new Date(dto.taxiCertificationExpiry) : undefined,
+        taxiBadgePhotoUrl: dto.taxiBadgePhotoUrl,
+        taxiBadgeExpiry: dto.taxiBadgeExpiry ? new Date(dto.taxiBadgeExpiry) : undefined,
         phvLicenseNumber: dto.phvLicenseNumber,
         phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : undefined,
         issuingCouncil: dto.issuingCouncil,
         badgeNumber: dto.badgeNumber,
-        nationalInsuranceNo: dto.nationalInsuranceNo,
         isActive: dto.isActive,
       },
     });
@@ -782,6 +889,81 @@ export class OperatorsService {
     });
 
     return { deleted: true, driverId };
+  }
+
+  async getVehiclePhotos(userId: string, vehicleId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      include: { photos: true },
+    });
+
+    if (!vehicle) {
+      throw new NotFoundException('Vehicle not found');
+    }
+
+    if (vehicle.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to view this vehicle');
+    }
+
+    return Promise.all(
+      vehicle.photos.map(async (photo) => {
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+        return { ...photo, photoUrl: downloadUrl };
+      })
+    );
+  }
+
+  async updateVehiclePhotos(userId: string, vehicleId: string, dto: UpdateVehiclePhotosDto) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+    });
+
+    if (!vehicle) {
+      throw new NotFoundException('Vehicle not found');
+    }
+
+    if (vehicle.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to update this vehicle');
+    }
+
+    const photos = await Promise.all(
+      dto.photos.map(async (photo) => {
+        return this.prisma.vehiclePhoto.upsert({
+          where: {
+            vehicleId_photoType: {
+              vehicleId,
+              photoType: photo.photoType as VehiclePhotoType,
+            },
+          },
+          update: {
+            photoUrl: photo.photoUrl,
+          },
+          create: {
+            vehicleId,
+            photoType: photo.photoType as VehiclePhotoType,
+            photoUrl: photo.photoUrl,
+          },
+        });
+      })
+    );
+
+    return photos;
   }
 }
 

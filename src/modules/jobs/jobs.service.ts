@@ -3,6 +3,7 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { Job, JobStatus, JourneyType, BidStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { SystemSettingsService } from '../system-settings/system-settings.service.js';
+import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 
 @Injectable()
 export class JobsService {
@@ -11,6 +12,7 @@ export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemSettingsService: SystemSettingsService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -348,7 +350,10 @@ export class JobsService {
   async completeJob(jobId: string): Promise<Job> {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
-      include: { assignedOperator: true },
+      include: {
+        assignedOperator: true,
+        booking: true,
+      },
     });
 
     if (!job) {
@@ -357,6 +362,35 @@ export class JobsService {
 
     if (job.status !== JobStatus.IN_PROGRESS && job.status !== JobStatus.ASSIGNED) {
       throw new BadRequestException('Job must be in progress or assigned to complete');
+    }
+
+    // Validate: Cannot mark job as complete before expected journey completion time
+    const now = new Date();
+    const scheduledPickupTime = new Date(job.booking.pickupDatetime);
+    const journeyDurationMinutes = job.booking.durationMinutes || 0;
+
+    // Calculate expected completion time: pickup time + journey duration
+    const expectedCompletionTime = new Date(
+      scheduledPickupTime.getTime() + journeyDurationMinutes * 60 * 1000
+    );
+
+    // Allow completion with a small 10-minute buffer before expected completion (for early arrivals)
+    const bufferMinutes = 10;
+    const earliestCompletionTime = new Date(
+      expectedCompletionTime.getTime() - bufferMinutes * 60 * 1000
+    );
+
+    if (now < earliestCompletionTime) {
+      const timeUntilCompletion = Math.ceil(
+        (expectedCompletionTime.getTime() - now.getTime()) / (1000 * 60)
+      );
+      throw new BadRequestException(
+        `Cannot mark job as complete before the expected journey end time. ` +
+        `Pickup: ${scheduledPickupTime.toISOString()}, ` +
+        `Journey duration: ${journeyDurationMinutes} minutes, ` +
+        `Expected completion: ${expectedCompletionTime.toISOString()} ` +
+        `(${timeUntilCompletion > 0 ? `in ${timeUntilCompletion} minutes` : 'now'})`
+      );
     }
 
     const [updatedJob] = await this.prisma.$transaction([
@@ -388,6 +422,21 @@ export class JobsService {
     ]);
 
     this.logger.log(`Job ${jobId} completed`);
+
+    // Send job completion notification to customer
+    if (updatedJob.booking) {
+      this.notificationsService
+        .sendJobCompletion(
+          updatedJob.booking.customerId,
+          updatedJob.booking.bookingReference,
+          updatedJob.booking.pickupAddress,
+          updatedJob.booking.dropoffAddress,
+          updatedJob.booking.pickupDatetime,
+        )
+        .catch((err) => {
+          this.logger.error(`Failed to send job completion notification: ${err.message}`);
+        });
+    }
 
     return updatedJob;
   }

@@ -8,6 +8,12 @@ export const CreateVehicleSchema = z.object({
   model: z.string().min(1, 'Vehicle model is required'),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
   color: z.string().min(1).optional(),
+  logbookUrl: z.string().optional(),
+  motCertificateUrl: z.string().optional(),
+  motExpiryDate: z.string().datetime().optional(),
+  insuranceDocumentUrl: z.string().optional(),
+  insuranceExpiryDate: z.string().datetime().optional(),
+  hirePermissionLetterUrl: z.string().optional(),
 });
 
 export const UpdateVehicleSchema = z.object({
@@ -17,6 +23,12 @@ export const UpdateVehicleSchema = z.object({
   model: z.string().min(1).optional(),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
   color: z.string().min(1).optional(),
+  logbookUrl: z.string().optional(),
+  motCertificateUrl: z.string().optional(),
+  motExpiryDate: z.string().datetime().optional(),
+  insuranceDocumentUrl: z.string().optional(),
+  insuranceExpiryDate: z.string().datetime().optional(),
+  hirePermissionLetterUrl: z.string().optional(),
   isActive: z.boolean().optional(),
 });
 
