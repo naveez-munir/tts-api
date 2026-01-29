@@ -160,10 +160,11 @@ export class BookingsController {
    */
   @Patch(':id')
   async update(
+    @CurrentUser() user: { id: string; role: string },
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateBookingSchema)) updateBookingDto: UpdateBookingDto,
   ) {
-    const booking = await this.bookingsService.update(id, updateBookingDto);
+    const booking = await this.bookingsService.update(id, updateBookingDto, user.role);
     return {
       success: true,
       data: this.bookingsService.formatBookingResponse(booking),

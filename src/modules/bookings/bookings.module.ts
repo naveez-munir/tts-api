@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BookingsService } from './bookings.service.js';
 import { BookingsController } from './bookings.controller.js';
+import { JourneyReminderSchedulerService } from './journey-reminder-scheduler.service.js';
 import { VehicleCapacityModule } from '../vehicle-capacity/vehicle-capacity.module.js';
 import { SystemSettingsModule } from '../system-settings/system-settings.module.js';
 import { GoogleMapsModule } from '../../integrations/google-maps/google-maps.module.js';
@@ -16,7 +17,7 @@ import { NotificationsModule } from '../../integrations/notifications/notificati
     NotificationsModule,
   ],
   controllers: [BookingsController],
-  providers: [BookingsService],
+  providers: [BookingsService, JourneyReminderSchedulerService],
   exports: [BookingsService],
 })
 export class BookingsModule {}

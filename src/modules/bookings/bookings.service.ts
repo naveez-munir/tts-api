@@ -416,8 +416,21 @@ export class BookingsService {
     });
   }
 
-  async update(id: string, updateBookingDto: UpdateBookingDto): Promise<Booking> {
-    const booking = await this.prisma.booking.findUnique({ where: { id } });
+  async update(id: string, updateBookingDto: UpdateBookingDto, userRole?: string): Promise<Booking> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id },
+      include: {
+        job: {
+          include: {
+            assignedOperator: {
+              include: {
+                user: true,
+              },
+            },
+          },
+        },
+      },
+    });
 
     if (!booking) {
       throw new NotFoundException(`Booking with ID ${id} not found`);
@@ -429,7 +442,47 @@ export class BookingsService {
       throw new BadRequestException('Cannot update booking in current status');
     }
 
-    return this.prisma.booking.update({
+    // Validate: Cannot amend booking within 24 hours of pickup or after pickup has passed
+    // Skip validation for admins (customer service override)
+    const isAdmin = userRole === 'ADMIN';
+
+    if (!isAdmin) {
+      const now = new Date();
+      const pickupTime = new Date(booking.pickupDatetime);
+      const hoursUntilPickup = (pickupTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (hoursUntilPickup < 0) {
+        throw new BadRequestException(
+          `Cannot amend booking after the scheduled pickup time has passed. ` +
+          `Pickup was scheduled for ${pickupTime.toISOString()}.`
+        );
+      }
+
+      if (hoursUntilPickup < 24) {
+        throw new BadRequestException(
+          `Cannot amend booking within 24 hours of pickup. ` +
+          `Pickup is scheduled for ${pickupTime.toISOString()} (in ${hoursUntilPickup.toFixed(1)} hours). ` +
+          `Please contact support for urgent changes.`
+        );
+      }
+    }
+
+    // Track changes for notification
+    const changes: string[] = [];
+    if (updateBookingDto.pickupDatetime && new Date(updateBookingDto.pickupDatetime).getTime() !== booking.pickupDatetime.getTime()) {
+      changes.push('Pickup date/time');
+    }
+    if (updateBookingDto.passengerCount !== undefined && updateBookingDto.passengerCount !== booking.passengerCount) {
+      changes.push('Passenger count');
+    }
+    if (updateBookingDto.luggageCount !== undefined && updateBookingDto.luggageCount !== booking.luggageCount) {
+      changes.push('Luggage count');
+    }
+    if (updateBookingDto.specialRequirements !== undefined && updateBookingDto.specialRequirements !== booking.specialRequirements) {
+      changes.push('Special requirements');
+    }
+
+    const updatedBooking = await this.prisma.booking.update({
       where: { id },
       data: {
         pickupDatetime: updateBookingDto.pickupDatetime
@@ -440,6 +493,47 @@ export class BookingsService {
         specialRequirements: updateBookingDto.specialRequirements,
       },
     });
+
+    // Send modification notification if there were changes
+    if (changes.length > 0) {
+      // Send notification to customer
+      this.notificationsService
+        .sendBookingModification(
+          booking.customerId,
+          booking.bookingReference,
+          updatedBooking.pickupAddress,
+          updatedBooking.dropoffAddress,
+          updatedBooking.pickupDatetime,
+          changes,
+        )
+        .catch((err) => {
+          this.logger.error(`Failed to send booking modification notification: ${err.message}`);
+        });
+
+      // Send notification to assigned operator if job exists and operator is assigned
+      if (booking.job?.assignedOperator) {
+        this.notificationsService
+          .sendOperatorJobModification({
+            operatorId: booking.job.assignedOperator.id,
+            operatorEmail: booking.job.assignedOperator.user.email,
+            operatorPhone: booking.job.assignedOperator.user.phoneNumber,
+            operatorName: booking.job.assignedOperator.companyName,
+            bookingReference: booking.bookingReference,
+            pickupAddress: updatedBooking.pickupAddress,
+            dropoffAddress: updatedBooking.dropoffAddress,
+            pickupDatetime: updatedBooking.pickupDatetime,
+            passengerCount: updatedBooking.passengerCount,
+            luggageCount: updatedBooking.luggageCount,
+            vehicleType: updatedBooking.vehicleType,
+            changes,
+          })
+          .catch((err) => {
+            this.logger.error(`Failed to send operator job modification notification: ${err.message}`);
+          });
+      }
+    }
+
+    return updatedBooking;
   }
 
   /**
@@ -711,6 +805,17 @@ export class BookingsService {
       throw new BadRequestException('Cannot cancel a completed booking');
     }
 
+    // Validate: Cannot cancel booking after pickup time has passed
+    const now = new Date();
+    const pickupTime = new Date(booking.pickupDatetime);
+
+    if (now >= pickupTime) {
+      throw new BadRequestException(
+        `Cannot cancel booking after the scheduled pickup time has passed. ` +
+        `Pickup was scheduled for ${pickupTime.toISOString()}`
+      );
+    }
+
     // Calculate refund based on cancellation policy
     const { refundAmount, refundPercent } = await this.calculateCancellationRefund(booking);
 
@@ -856,6 +961,21 @@ export class BookingsService {
 
     if (booking.status !== BookingStatus.ASSIGNED && booking.status !== BookingStatus.IN_PROGRESS) {
       throw new BadRequestException('Only assigned or in-progress bookings can be marked as no-show');
+    }
+
+    // Validate: Cannot mark as no-show before pickup time has passed
+    const now = new Date();
+    const pickupTime = new Date(booking.pickupDatetime);
+    const graceMinutes = 15; // Grace period after scheduled pickup time
+    const earliestNoShowTime = new Date(pickupTime.getTime() + graceMinutes * 60 * 1000);
+
+    if (now < earliestNoShowTime) {
+      const minutesUntilAllowed = Math.ceil((earliestNoShowTime.getTime() - now.getTime()) / (1000 * 60));
+      throw new BadRequestException(
+        `Cannot mark as no-show before the scheduled pickup time. ` +
+        `Pickup was scheduled for ${pickupTime.toISOString()}. ` +
+        `No-show can be marked ${minutesUntilAllowed} minutes from now (${graceMinutes} min grace period after pickup).`
+      );
     }
 
     // Get no-show charge percentage from settings

@@ -4,6 +4,7 @@ import { StripeService } from '../../integrations/stripe/stripe.service.js';
 import { SystemSettingsService } from '../system-settings/system-settings.service.js';
 import { BiddingQueueService } from '../../queue/bidding-queue.service.js';
 import { S3Service } from '../../integrations/s3/s3.service.js';
+import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import {
   JobStatus,
   BidStatus,
@@ -32,6 +33,7 @@ export class AdminService {
     private readonly systemSettingsService: SystemSettingsService,
     private readonly biddingQueueService: BiddingQueueService,
     private readonly s3Service: S3Service,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   // =========================================================================
@@ -233,6 +235,17 @@ export class AdminService {
       data: { approvalStatus: dto.approvalStatus as OperatorApprovalStatus },
     });
 
+    // Send notification based on the approval status
+    if (dto.approvalStatus === OperatorApprovalStatus.APPROVED) {
+      this.notificationsService.sendOperatorApproval(operatorId).catch((err) => {
+        this.logger.error(`Failed to send operator approval notification: ${err.message}`);
+      });
+    } else if (dto.approvalStatus === OperatorApprovalStatus.REJECTED) {
+      this.notificationsService.sendOperatorRejection(operatorId).catch((err) => {
+        this.logger.error(`Failed to send operator rejection notification: ${err.message}`);
+      });
+    }
+
     return {
       id: updated.id,
       approvalStatus: updated.approvalStatus,
@@ -259,6 +272,11 @@ export class AdminService {
     const updated = await this.prisma.operatorProfile.update({
       where: { id: operatorId },
       data: { approvalStatus: OperatorApprovalStatus.SUSPENDED },
+    });
+
+    // Send suspension notification
+    this.notificationsService.sendOperatorSuspension(operatorId, reason).catch((err) => {
+      this.logger.error(`Failed to send operator suspension notification: ${err.message}`);
     });
 
     return {
@@ -290,6 +308,11 @@ export class AdminService {
       data: { approvalStatus: OperatorApprovalStatus.APPROVED },
     });
 
+    // Send reinstatement notification
+    this.notificationsService.sendOperatorReinstatement(operatorId).catch((err) => {
+      this.logger.error(`Failed to send operator reinstatement notification: ${err.message}`);
+    });
+
     return {
       id: updated.id,
       approvalStatus: updated.approvalStatus,
@@ -316,6 +339,11 @@ export class AdminService {
     const updated = await this.prisma.operatorProfile.update({
       where: { id: operatorId },
       data: { approvalStatus: OperatorApprovalStatus.REJECTED },
+    });
+
+    // Send rejection notification
+    this.notificationsService.sendOperatorRejection(operatorId, reason).catch((err) => {
+      this.logger.error(`Failed to send operator rejection notification: ${err.message}`);
     });
 
     return {
@@ -644,6 +672,13 @@ export class AdminService {
         updatedAt: true,
       },
     });
+
+    // Send deactivation notification if account is being deactivated
+    if (!dto.isActive) {
+      this.notificationsService.sendCustomerDeactivation(customerId, dto.reason).catch((err) => {
+        this.logger.error(`Failed to send customer deactivation notification: ${err.message}`);
+      });
+    }
 
     return {
       id: updated.id,
@@ -1364,6 +1399,7 @@ export class AdminService {
   async reopenBidding(jobId: string, biddingWindowHours?: number) {
     const job = await this.prisma.job.findUnique({
       where: { id: jobId },
+      include: { booking: true },
     });
 
     if (!job) {
@@ -1378,7 +1414,25 @@ export class AdminService {
     const windowHours = biddingWindowHours ??
       await this.systemSettingsService.getSettingOrDefault('REOPEN_BIDDING_DEFAULT_HOURS', 24);
 
+    // Validate: Cannot reopen bidding for past bookings or if bidding window would extend past pickup time
     const now = new Date();
+    const pickupTime = new Date(job.booking.pickupDatetime);
+    const hoursUntilPickup = (pickupTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+    if (hoursUntilPickup < 0) {
+      throw new BadRequestException(
+        `Cannot reopen bidding for past bookings. ` +
+        `Pickup was scheduled for ${pickupTime.toISOString()}.`
+      );
+    }
+
+    if (hoursUntilPickup < windowHours) {
+      throw new BadRequestException(
+        `Cannot reopen bidding for ${windowHours} hours when pickup is in ${hoursUntilPickup.toFixed(1)} hours. ` +
+        `Please reduce the bidding window duration to ${Math.floor(hoursUntilPickup)} hours or less.`
+      );
+    }
+
     const newClosingTime = new Date();
     newClosingTime.setHours(newClosingTime.getHours() + windowHours);
 
@@ -1415,6 +1469,17 @@ export class AdminService {
 
     if (job.status === JobStatus.ASSIGNED || job.status === JobStatus.COMPLETED) {
       throw new BadRequestException('Job is already assigned or completed');
+    }
+
+    // Validate: Cannot manually assign operator to past bookings
+    const now = new Date();
+    const pickupTime = new Date(job.booking.pickupDatetime);
+
+    if (now >= pickupTime) {
+      throw new BadRequestException(
+        `Cannot assign operator to past bookings. ` +
+        `Pickup was scheduled for ${pickupTime.toISOString()}.`
+      );
     }
 
     const operator = await this.prisma.operatorProfile.findUnique({
@@ -1478,6 +1543,32 @@ export class AdminService {
       where: { id: job.bookingId },
       data: { status: 'ASSIGNED' },
     });
+
+    // Send notifications for manual job assignment
+    this.notificationsService
+      .sendManualJobAssignmentToOperator(
+        dto.operatorId,
+        job.booking.bookingReference,
+        job.booking.pickupAddress,
+        job.booking.dropoffAddress,
+        job.booking.pickupDatetime,
+        dto.bidAmount.toFixed(2),
+      )
+      .catch((err) => {
+        this.logger.error(`Failed to send manual job assignment notification to operator: ${err.message}`);
+      });
+
+    this.notificationsService
+      .sendManualJobAssignmentToCustomer(
+        job.booking.customerId,
+        job.booking.bookingReference,
+        job.booking.pickupAddress,
+        job.booking.dropoffAddress,
+        job.booking.pickupDatetime,
+      )
+      .catch((err) => {
+        this.logger.error(`Failed to send manual job assignment notification to customer: ${err.message}`);
+      });
 
     return {
       job: {

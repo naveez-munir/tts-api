@@ -61,6 +61,8 @@ export class AuthController {
             );
           });
       }
+      // Note: OPERATOR welcome email is sent when operator profile is registered via operators.service.ts
+      // This allows us to include company-specific details in the welcome message
 
       return {
         success: true,

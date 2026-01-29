@@ -533,5 +533,531 @@ export class NotificationsService {
       this.logger.error('Failed to log notification', error);
     }
   }
+
+  // =========================================================================
+  // OPERATOR LIFECYCLE NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Send operator approval notification
+   */
+  async sendOperatorApproval(operatorId: string): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    await this.resendService.sendOperatorApproval(operator.user.email, {
+      companyName: operator.companyName,
+      contactName: `${operator.user.firstName} ${operator.user.lastName}`,
+    });
+
+    await this.logNotification(operator.userId, 'OPERATOR_APPROVED', operatorId);
+    this.logger.log(`Approval notification sent to operator ${operatorId}`);
+  }
+
+  /**
+   * Send operator rejection notification
+   */
+  async sendOperatorRejection(operatorId: string, reason?: string): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    await this.resendService.sendOperatorRejection(operator.user.email, {
+      companyName: operator.companyName,
+      contactName: `${operator.user.firstName} ${operator.user.lastName}`,
+      reason,
+    });
+
+    await this.logNotification(operator.userId, 'OPERATOR_REJECTED', operatorId);
+    this.logger.log(`Rejection notification sent to operator ${operatorId}`);
+  }
+
+  /**
+   * Send operator suspension notification
+   */
+  async sendOperatorSuspension(operatorId: string, reason?: string): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    await this.resendService.sendOperatorSuspension(operator.user.email, {
+      companyName: operator.companyName,
+      contactName: `${operator.user.firstName} ${operator.user.lastName}`,
+      reason,
+    });
+
+    await this.logNotification(operator.userId, 'OPERATOR_SUSPENDED', operatorId);
+    this.logger.log(`Suspension notification sent to operator ${operatorId}`);
+  }
+
+  /**
+   * Send operator reinstatement notification
+   */
+  async sendOperatorReinstatement(operatorId: string): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    await this.resendService.sendOperatorReinstatement(operator.user.email, {
+      companyName: operator.companyName,
+      contactName: `${operator.user.firstName} ${operator.user.lastName}`,
+    });
+
+    await this.logNotification(operator.userId, 'OPERATOR_REINSTATED', operatorId);
+    this.logger.log(`Reinstatement notification sent to operator ${operatorId}`);
+  }
+
+  /**
+   * Send welcome email to newly registered operator
+   */
+  async sendOperatorWelcome(operatorId: string): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    await this.resendService.sendOperatorWelcome(operator.user.email, {
+      companyName: operator.companyName,
+      contactName: `${operator.user.firstName} ${operator.user.lastName}`,
+      email: operator.user.email,
+    });
+
+    await this.logNotification(operator.userId, 'OPERATOR_WELCOME', operatorId);
+    this.logger.log(`Welcome email sent to operator ${operatorId}`);
+  }
+
+  // =========================================================================
+  // ADMIN NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Send notification to admin about new operator registration
+   */
+  async sendNewOperatorRegistrationToAdmin(operatorId: string): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    // Get admin email from system settings
+    const adminEmail = await this.systemSettingsService.getSettingOrDefault(
+      'ADMIN_PAYOUT_EMAIL',
+      'admin@example.com',
+    );
+
+    await this.resendService.sendNewOperatorRegistrationToAdmin(adminEmail, {
+      companyName: operator.companyName,
+      contactName: `${operator.user.firstName} ${operator.user.lastName}`,
+      contactEmail: operator.user.email,
+      registrationNumber: operator.registrationNumber || 'Not provided',
+      operatorId: operatorId,
+    });
+
+    this.logger.log(`Admin notified about new operator registration: ${operatorId}`);
+  }
+
+  /**
+   * Send manual job assignment notification to operator
+   */
+  async sendManualJobAssignmentToOperator(
+    operatorId: string,
+    bookingReference: string,
+    pickupAddress: string,
+    dropoffAddress: string,
+    pickupDatetime: Date,
+    bidAmount: string,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    const formattedDatetime = this.formatDateTime(pickupDatetime);
+
+    await this.resendService.sendManualJobAssignmentToOperator(operator.user.email, {
+      operatorName: operator.companyName,
+      bookingReference,
+      pickupAddress,
+      dropoffAddress,
+      pickupDatetime: formattedDatetime,
+      bidAmount,
+    });
+
+    await this.logNotification(operator.userId, 'MANUAL_JOB_ASSIGNMENT', bookingReference);
+    this.logger.log(`Manual job assignment notification sent to operator ${operatorId}`);
+  }
+
+  /**
+   * Send manual job assignment notification to customer
+   */
+  async sendManualJobAssignmentToCustomer(
+    customerId: string,
+    bookingReference: string,
+    pickupAddress: string,
+    dropoffAddress: string,
+    pickupDatetime: Date,
+  ): Promise<void> {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      this.logger.warn(`Customer not found: ${customerId}`);
+      return;
+    }
+
+    const formattedDatetime = this.formatDateTime(pickupDatetime);
+
+    await this.resendService.sendManualJobAssignmentToCustomer(customer.email, {
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      bookingReference,
+      pickupAddress,
+      dropoffAddress,
+      pickupDatetime: formattedDatetime,
+    });
+
+    await this.logNotification(customer.id, 'DRIVER_BEING_ASSIGNED', bookingReference);
+    this.logger.log(`Manual job assignment notification sent to customer ${customerId}`);
+  }
+
+  // =========================================================================
+  // CUSTOMER NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Send customer account deactivation notification
+   */
+  async sendCustomerDeactivation(customerId: string, reason?: string): Promise<void> {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      this.logger.warn(`Customer not found: ${customerId}`);
+      return;
+    }
+
+    await this.resendService.sendCustomerDeactivation(customer.email, {
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      email: customer.email,
+      reason,
+    });
+
+    await this.logNotification(customer.id, 'CUSTOMER_DEACTIVATED', customerId);
+    this.logger.log(`Deactivation notification sent to customer ${customerId}`);
+  }
+
+  /**
+   * Send job completion notification to customer
+   */
+  async sendJobCompletion(
+    customerId: string,
+    bookingReference: string,
+    pickupAddress: string,
+    dropoffAddress: string,
+    pickupDatetime: Date,
+  ): Promise<void> {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      this.logger.warn(`Customer not found: ${customerId}`);
+      return;
+    }
+
+    const formattedDatetime = this.formatDateTime(pickupDatetime);
+
+    await this.resendService.sendJobCompletion(customer.email, {
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      bookingReference,
+      pickupAddress,
+      dropoffAddress,
+      pickupDatetime: formattedDatetime,
+    });
+
+    await this.logNotification(customer.id, 'JOB_COMPLETED', bookingReference);
+    this.logger.log(`Job completion notification sent to customer ${customerId}`);
+  }
+
+  /**
+   * Send booking modification notification to customer
+   */
+  async sendBookingModification(
+    customerId: string,
+    bookingReference: string,
+    pickupAddress: string,
+    dropoffAddress: string,
+    pickupDatetime: Date,
+    changes: string[],
+  ): Promise<void> {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+    });
+
+    if (!customer) {
+      this.logger.warn(`Customer not found: ${customerId}`);
+      return;
+    }
+
+    const formattedDatetime = this.formatDateTime(pickupDatetime);
+
+    await this.resendService.sendBookingModification(customer.email, {
+      customerName: `${customer.firstName} ${customer.lastName}`,
+      bookingReference,
+      pickupAddress,
+      dropoffAddress,
+      pickupDatetime: formattedDatetime,
+      changes,
+    });
+
+    await this.logNotification(customer.id, 'BOOKING_MODIFIED', bookingReference);
+    this.logger.log(`Booking modification notification sent to customer ${customerId}`);
+  }
+
+  /**
+   * Send job modification notification to operator
+   */
+  async sendOperatorJobModification(data: {
+    operatorId: string;
+    operatorEmail: string;
+    operatorPhone: string | null;
+    operatorName: string;
+    bookingReference: string;
+    pickupAddress: string;
+    dropoffAddress: string;
+    pickupDatetime: Date;
+    passengerCount: number;
+    luggageCount: number;
+    vehicleType: string;
+    changes: string[];
+  }): Promise<void> {
+    const formattedDatetime = this.formatDateTime(data.pickupDatetime);
+
+    // Send email notification
+    await this.resendService.sendOperatorJobModification(data.operatorEmail, {
+      operatorName: data.operatorName,
+      bookingReference: data.bookingReference,
+      pickupAddress: data.pickupAddress,
+      dropoffAddress: data.dropoffAddress,
+      pickupDatetime: formattedDatetime,
+      passengerCount: data.passengerCount,
+      luggageCount: data.luggageCount,
+      vehicleType: data.vehicleType,
+      changes: data.changes,
+    });
+
+    // Send SMS notification if phone available
+    if (data.operatorPhone) {
+      const changesList = data.changes.join(', ');
+      await this.twilioService.sendJobModificationSms(
+        data.operatorPhone,
+        data.bookingReference,
+        changesList,
+      );
+    }
+
+    await this.logNotification(data.operatorId, 'JOB_MODIFIED', data.bookingReference);
+    this.logger.log(`Job modification notification sent to operator ${data.operatorId}`);
+  }
+
+  // =========================================================================
+  // DOCUMENT EXPIRY NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Send document expiry warning to operator
+   */
+  async sendDocumentExpiryWarning(
+    operatorId: string,
+    documentType: string,
+    expiryDate: Date,
+    daysUntilExpiry: number,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    const formattedExpiryDate = expiryDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    await this.resendService.sendDocumentExpiryWarning(operator.user.email, {
+      operatorName: operator.companyName,
+      documentType,
+      expiryDate: formattedExpiryDate,
+      daysUntilExpiry,
+    });
+
+    await this.logNotification(operator.userId, 'DOCUMENT_EXPIRY_WARNING', documentType);
+    this.logger.log(`Document expiry warning sent to operator ${operatorId} for ${documentType}`);
+  }
+
+  /**
+   * Send document expired notification to operator
+   */
+  async sendDocumentExpired(
+    operatorId: string,
+    documentType: string,
+    expiredDate: Date,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    const formattedExpiredDate = expiredDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    await this.resendService.sendDocumentExpired(operator.user.email, {
+      operatorName: operator.companyName,
+      documentType,
+      expiredDate: formattedExpiredDate,
+    });
+
+    await this.logNotification(operator.userId, 'DOCUMENT_EXPIRED', documentType);
+    this.logger.log(`Document expired notification sent to operator ${operatorId} for ${documentType}`);
+  }
+
+  /**
+   * Send document expiry notification to admin
+   */
+  async sendDocumentExpiryToAdmin(
+    operatorId: string,
+    documentType: string,
+    expiryDate: Date,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    // Get admin email from system settings
+    const adminEmail = await this.systemSettingsService.getSettingOrDefault(
+      'ADMIN_PAYOUT_EMAIL',
+      'admin@example.com',
+    );
+
+    const formattedExpiryDate = expiryDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    await this.resendService.sendDocumentExpiryToAdmin(adminEmail, {
+      operatorName: operator.companyName,
+      operatorEmail: operator.user.email,
+      operatorId,
+      documentType,
+      expiryDate: formattedExpiryDate,
+    });
+
+    this.logger.log(`Admin notified about document expiry for operator ${operatorId}`);
+  }
+
+  // =========================================================================
+  // JOURNEY REMINDER NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Send journey reminder to customer (24 hours before pickup)
+   */
+  async sendJourneyReminder(
+    bookingId: string,
+    driverDetails?: {
+      driverName: string;
+      driverPhone: string;
+      vehicleRegistration: string;
+    },
+  ): Promise<void> {
+    const booking = await this.prisma.booking.findUnique({
+      where: { id: bookingId },
+      include: {
+        customer: true,
+      },
+    });
+
+    if (!booking || !booking.customer) {
+      this.logger.warn(`Cannot send journey reminder: Booking ${bookingId} not found`);
+      return;
+    }
+
+    const formattedPickupDate = this.formatDateTime(booking.pickupDatetime);
+
+    await this.resendService.sendJourneyReminder(booking.customer.email, {
+      customerName: `${booking.customer.firstName} ${booking.customer.lastName}`,
+      bookingReference: booking.bookingReference,
+      pickupDatetime: formattedPickupDate,
+      pickupAddress: booking.pickupAddress,
+      dropoffAddress: booking.dropoffAddress,
+      driverName: driverDetails?.driverName,
+      driverPhone: driverDetails?.driverPhone,
+      vehicleRegistration: driverDetails?.vehicleRegistration,
+      hasDriverDetails: !!driverDetails,
+    });
+
+    this.logger.log(`Journey reminder sent for booking ${booking.bookingReference}`);
+  }
 }
 

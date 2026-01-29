@@ -15,6 +15,7 @@ export type ListCustomersQueryDto = z.infer<typeof ListCustomersQuerySchema>;
 // Update customer account status
 export const UpdateCustomerStatusSchema = z.object({
   isActive: z.boolean(),
+  reason: z.string().optional(), // Optional reason for deactivation
 });
 
 export type UpdateCustomerStatusDto = z.infer<typeof UpdateCustomerStatusSchema>;

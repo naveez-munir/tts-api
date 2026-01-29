@@ -171,6 +171,19 @@ export class TwilioService {
   }
 
   /**
+   * Send job modification SMS to operator
+   */
+  async sendJobModificationSms(
+    phone: string,
+    bookingReference: string,
+    changes: string,
+  ): Promise<boolean> {
+    const message = `Job ${bookingReference} has been updated by the customer. Changes: ${changes}. Please review the updated details in your app.`;
+
+    return this.sendSms({ to: phone, message });
+  }
+
+  /**
    * Format phone number to UK international format
    */
   private formatUkPhoneNumber(phone: string): string {
