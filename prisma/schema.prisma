@@ -53,6 +53,7 @@ model OperatorProfile {
   vehicleTypes           VehicleType[]
   bids                   Bid[]
   documents              Document[]
+  drivers                Driver[]
   assignedJobs           Job[]                  @relation("AssignedOperator")
   user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   serviceAreas           ServiceArea[]
@@ -64,19 +65,82 @@ model OperatorProfile {
 }
 
 model Vehicle {
-  id                String          @id @default(cuid())
-  operatorId        String
-  vehicleType       VehicleType
-  registrationPlate String
-  make              String
-  model             String
-  year              Int
-  isActive          Boolean         @default(true)
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
-  operator          OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  id                    String          @id @default(cuid())
+  operatorId            String
+  vehicleType           VehicleType
+  registrationPlate     String
+  make                  String
+  model                 String
+  year                  Int
+  color                 String?
+  logbookUrl            String?
+  motCertificateUrl     String?
+  motExpiryDate         DateTime?
+  insuranceDocumentUrl  String?
+  insuranceExpiryDate   DateTime?
+  hirePermissionLetterUrl String?
+  isActive              Boolean         @default(true)
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  operator              OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  photos                VehiclePhoto[]
 
   @@map("vehicles")
+}
+
+enum VehiclePhotoType {
+  FRONT
+  BACK
+  DRIVER_SIDE
+  FRONT_SIDE
+  DASHBOARD
+  REAR_BOOT
+}
+
+model VehiclePhoto {
+  id        String           @id @default(cuid())
+  vehicleId String
+  photoType VehiclePhotoType
+  photoUrl  String
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  vehicle   Vehicle          @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([vehicleId, photoType])
+  @@map("vehicle_photos")
+}
+
+model Driver {
+  id                      String          @id @default(cuid())
+  operatorId              String
+  firstName               String
+  lastName                String
+  email                   String?
+  phoneNumber             String
+  profileImageUrl         String?
+  dateOfBirth             DateTime?
+  passportUrl             String?
+  passportExpiry          DateTime?
+  drivingLicenseNumber    String?
+  drivingLicenseFrontUrl  String?
+  drivingLicenseBackUrl   String?
+  drivingLicenseExpiry    DateTime?
+  nationalInsuranceNo     String?
+  nationalInsuranceDocUrl String?
+  taxiCertificationUrl    String?
+  taxiCertificationExpiry DateTime?
+  taxiBadgePhotoUrl       String?
+  taxiBadgeExpiry         DateTime?
+  phvLicenseNumber        String?
+  phvLicenseExpiry        DateTime?
+  issuingCouncil          String?
+  badgeNumber             String?
+  isActive                Boolean         @default(true)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+  operator                OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@map("drivers")
 }
 
 model ServiceArea {

@@ -6,6 +6,7 @@ import type { RegisterOperatorDto } from './dto/register-operator.dto.js';
 import type { UpdateOperatorProfileDto } from './dto/update-operator-profile.dto.js';
 import type { UpdateBankDetailsDto } from './dto/update-bank-details.dto.js';
 import type { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto.js';
+import type { CreateDriverDto, UpdateDriverDto } from './dto/driver.dto.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import { AcceptanceProcessor } from '../../queue/acceptance.processor.js';
 import { S3Service } from '../../integrations/s3/s3.service.js';
@@ -536,7 +537,7 @@ export class OperatorsService {
       throw new NotFoundException('Operator profile not found');
     }
 
-    return this.prisma.vehicle.create({
+    const vehicle = await this.prisma.vehicle.create({
       data: {
         operatorId: profile.id,
         vehicleType: dto.vehicleType,
@@ -544,8 +545,20 @@ export class OperatorsService {
         make: dto.make,
         model: dto.model,
         year: dto.year,
+        color: dto.color,
       },
     });
+
+    const vehicleCount = await this.prisma.vehicle.count({
+      where: { operatorId: profile.id },
+    });
+
+    await this.prisma.operatorProfile.update({
+      where: { id: profile.id },
+      data: { fleetSize: vehicleCount },
+    });
+
+    return vehicle;
   }
 
   /**
@@ -606,7 +619,169 @@ export class OperatorsService {
       where: { id: vehicleId },
     });
 
+    const vehicleCount = await this.prisma.vehicle.count({
+      where: { operatorId: profile.id },
+    });
+
+    await this.prisma.operatorProfile.update({
+      where: { id: profile.id },
+      data: { fleetSize: vehicleCount },
+    });
+
     return { deleted: true, vehicleId };
+  }
+
+  async getDrivers(userId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const drivers = await this.prisma.driver.findMany({
+      where: { operatorId: profile.id },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const driversWithUrls = await Promise.all(
+      drivers.map(async (driver) => {
+        if (driver.profileImageUrl) {
+          const { downloadUrl } = await this.s3Service.generateDownloadUrl(driver.profileImageUrl);
+          return { ...driver, profileImageUrl: downloadUrl };
+        }
+        return driver;
+      })
+    );
+
+    return driversWithUrls;
+  }
+
+  async getDriver(userId: string, driverId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (driver.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to view this driver');
+    }
+
+    if (driver.profileImageUrl) {
+      const { downloadUrl } = await this.s3Service.generateDownloadUrl(driver.profileImageUrl);
+      return { ...driver, profileImageUrl: downloadUrl };
+    }
+
+    return driver;
+  }
+
+  async createDriver(userId: string, dto: CreateDriverDto) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    return this.prisma.driver.create({
+      data: {
+        operatorId: profile.id,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email,
+        phoneNumber: dto.phoneNumber,
+        profileImageUrl: dto.profileImageUrl,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : null,
+        drivingLicenseNumber: dto.drivingLicenseNumber,
+        phvLicenseNumber: dto.phvLicenseNumber,
+        phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : null,
+        issuingCouncil: dto.issuingCouncil,
+        badgeNumber: dto.badgeNumber,
+        nationalInsuranceNo: dto.nationalInsuranceNo,
+      },
+    });
+  }
+
+  async updateDriver(userId: string, driverId: string, dto: UpdateDriverDto) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (driver.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to update this driver');
+    }
+
+    return this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        email: dto.email,
+        phoneNumber: dto.phoneNumber,
+        profileImageUrl: dto.profileImageUrl,
+        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+        drivingLicenseNumber: dto.drivingLicenseNumber,
+        phvLicenseNumber: dto.phvLicenseNumber,
+        phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : undefined,
+        issuingCouncil: dto.issuingCouncil,
+        badgeNumber: dto.badgeNumber,
+        nationalInsuranceNo: dto.nationalInsuranceNo,
+        isActive: dto.isActive,
+      },
+    });
+  }
+
+  async deleteDriver(userId: string, driverId: string) {
+    const profile = await this.prisma.operatorProfile.findUnique({
+      where: { userId },
+    });
+
+    if (!profile) {
+      throw new NotFoundException('Operator profile not found');
+    }
+
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (driver.operatorId !== profile.id) {
+      throw new BadRequestException('Not authorized to delete this driver');
+    }
+
+    await this.prisma.driver.delete({
+      where: { id: driverId },
+    });
+
+    return { deleted: true, driverId };
   }
 }
 

@@ -7,6 +7,7 @@ export const CreateVehicleSchema = z.object({
   make: z.string().min(1, 'Vehicle make is required'),
   model: z.string().min(1, 'Vehicle model is required'),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
+  color: z.string().min(1).optional(),
 });
 
 export const UpdateVehicleSchema = z.object({
@@ -15,6 +16,7 @@ export const UpdateVehicleSchema = z.object({
   make: z.string().min(1).optional(),
   model: z.string().min(1).optional(),
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
+  color: z.string().min(1).optional(),
   isActive: z.boolean().optional(),
 });
 

@@ -23,6 +23,8 @@ import { UpdateBankDetailsSchema } from './dto/update-bank-details.dto.js';
 import type { UpdateBankDetailsDto } from './dto/update-bank-details.dto.js';
 import { CreateVehicleSchema, UpdateVehicleSchema } from './dto/vehicle.dto.js';
 import type { CreateVehicleDto, UpdateVehicleDto } from './dto/vehicle.dto.js';
+import { CreateDriverSchema, UpdateDriverSchema } from './dto/driver.dto.js';
+import type { CreateDriverDto, UpdateDriverDto } from './dto/driver.dto.js';
 
 @Controller('operators')
 @UseGuards(JwtAuthGuard)
@@ -213,6 +215,69 @@ export class OperatorsController {
       success: true,
       data: result,
       message: 'Vehicle deleted successfully',
+    };
+  }
+
+  @Get('drivers')
+  async getDrivers(@CurrentUser() user: any) {
+    const drivers = await this.operatorsService.getDrivers(user.id);
+    return {
+      success: true,
+      data: drivers,
+    };
+  }
+
+  @Get('drivers/:driverId')
+  async getDriver(
+    @CurrentUser() user: any,
+    @Param('driverId') driverId: string,
+  ) {
+    const driver = await this.operatorsService.getDriver(user.id, driverId);
+    return {
+      success: true,
+      data: driver,
+    };
+  }
+
+  @Post('drivers')
+  @HttpCode(HttpStatus.CREATED)
+  async createDriver(
+    @CurrentUser() user: any,
+    @Body(new ZodValidationPipe(CreateDriverSchema)) dto: CreateDriverDto,
+  ) {
+    const driver = await this.operatorsService.createDriver(user.id, dto);
+    return {
+      success: true,
+      data: driver,
+      message: 'Driver added successfully',
+    };
+  }
+
+  @Patch('drivers/:driverId')
+  async updateDriver(
+    @CurrentUser() user: any,
+    @Param('driverId') driverId: string,
+    @Body(new ZodValidationPipe(UpdateDriverSchema)) dto: UpdateDriverDto,
+  ) {
+    const driver = await this.operatorsService.updateDriver(user.id, driverId, dto);
+    return {
+      success: true,
+      data: driver,
+      message: 'Driver updated successfully',
+    };
+  }
+
+  @Delete('drivers/:driverId')
+  @HttpCode(HttpStatus.OK)
+  async deleteDriver(
+    @CurrentUser() user: any,
+    @Param('driverId') driverId: string,
+  ) {
+    const result = await this.operatorsService.deleteDriver(user.id, driverId);
+    return {
+      success: true,
+      data: result,
+      message: 'Driver deleted successfully',
     };
   }
 }
