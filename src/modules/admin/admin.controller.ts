@@ -23,8 +23,8 @@ import { OperatorApprovalSchema, ListOperatorsQuerySchema } from './dto/operator
 import type { OperatorApprovalDto, ListOperatorsQueryDto } from './dto/operator-approval.dto.js';
 import { CreatePricingRuleSchema, UpdatePricingRuleSchema } from './dto/pricing-rule.dto.js';
 import type { CreatePricingRuleDto, UpdatePricingRuleDto } from './dto/pricing-rule.dto.js';
-import { ListBookingsQuerySchema, RefundBookingSchema } from './dto/admin-booking.dto.js';
-import type { ListBookingsQueryDto, RefundBookingDto } from './dto/admin-booking.dto.js';
+import { ListBookingsQuerySchema, ListJobsQuerySchema, RefundBookingSchema } from './dto/admin-booking.dto.js';
+import type { ListBookingsQueryDto, ListJobsQueryDto, RefundBookingDto } from './dto/admin-booking.dto.js';
 import { ManualJobAssignmentSchema } from './dto/job-assignment.dto.js';
 import type { ManualJobAssignmentDto } from './dto/job-assignment.dto.js';
 import { ReportsQuerySchema } from './dto/reports-query.dto.js';
@@ -193,13 +193,9 @@ export class AdminController {
   // JOB MANAGEMENT
   // =========================================================================
 
-  /**
-   * GET /admin/jobs
-   * List all jobs with filters
-   */
   @Get('jobs')
   async listJobs(
-    @Query(new ZodValidationPipe(ListBookingsQuerySchema)) query: ListBookingsQueryDto,
+    @Query(new ZodValidationPipe(ListJobsQuerySchema)) query: ListJobsQueryDto,
   ) {
     const result = await this.adminService.listJobs(query);
     return { success: true, data: { jobs: result.jobs }, meta: result.meta };

@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-// import { Cron, CronExpression } from '@nestjs/schedule';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../../database/prisma.service.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import { BookingStatus, JobStatus } from '@prisma/client';
@@ -16,10 +16,8 @@ export class JourneyReminderSchedulerService {
   /**
    * Check for bookings with pickup in the next 24 hours and send reminders
    * Runs every hour to catch bookings as they enter the 24-hour window
-   *
-   * NOTE: Cron job disabled for now - uncomment when ready to enable
    */
-  // @Cron(CronExpression.EVERY_HOUR)
+  @Cron(CronExpression.EVERY_HOUR)
   async sendJourneyReminders(): Promise<void> {
     this.logger.log('Starting journey reminder check...');
 

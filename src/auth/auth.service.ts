@@ -103,7 +103,6 @@ export class AuthService {
     otp: string,
     newPassword: string,
   ): Promise<void> {
-    // Validate OTP
     const isValid = await this.otpService.validateOTP(
       email,
       otp,
@@ -113,16 +112,31 @@ export class AuthService {
       throw new BadRequestException('Invalid or expired OTP');
     }
 
-    // Find user
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       throw new NotFoundException('User not found');
     }
 
-    // Hash new password
     const hashedPassword = await bcrypt.hash(newPassword, 10);
+    await this.usersService.updatePassword(user.id, hashedPassword);
+  }
 
-    // Update user password
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.usersService.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) {
+      throw new BadRequestException('Current password is incorrect');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
     await this.usersService.updatePassword(user.id, hashedPassword);
   }
 

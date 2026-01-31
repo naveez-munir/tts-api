@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Post,
+  Patch,
   BadRequestException,
   Logger,
   UseGuards,
@@ -23,8 +24,12 @@ import { VerifyEmailSchema } from './dto/verify-email.dto.js';
 import type { VerifyEmailDto } from './dto/verify-email.dto.js';
 import { ResendOtpSchema } from './dto/resend-otp.dto.js';
 import type { ResendOtpDto } from './dto/resend-otp.dto.js';
+import { ChangePasswordSchema } from './dto/change-password.dto.js';
+import type { ChangePasswordDto } from './dto/change-password.dto.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ResendService } from '../integrations/resend/resend.service.js';
+import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
+import { CurrentUser } from '../common/decorators/current-user.decorator.js';
 
 @Controller('auth')
 @UseGuards(ThrottlerGuard)
@@ -150,11 +155,10 @@ export class AuthController {
   }
 
   @Post('resend-otp')
-  @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per 60 seconds
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   async resendOTP(
     @Body(new ZodValidationPipe(ResendOtpSchema)) dto: ResendOtpDto,
   ) {
-    // Resend OTP based on type
     if (dto.type === 'PASSWORD_RESET') {
       await this.authService.sendPasswordResetOTP(dto.email);
     } else {
@@ -164,6 +168,26 @@ export class AuthController {
     return {
       success: true,
       message: 'OTP resent successfully',
+    };
+  }
+
+  @Patch('change-password')
+  @UseGuards(JwtAuthGuard)
+  @Throttle({ default: { limit: 5, ttl: 60000 } })
+  async changePassword(
+    @CurrentUser() user: { id: string },
+    @Body(new ZodValidationPipe(ChangePasswordSchema))
+    dto: ChangePasswordDto,
+  ) {
+    await this.authService.changePassword(
+      user.id,
+      dto.currentPassword,
+      dto.newPassword,
+    );
+
+    return {
+      success: true,
+      message: 'Password changed successfully',
     };
   }
 }

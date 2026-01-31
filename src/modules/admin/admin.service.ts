@@ -16,7 +16,7 @@ import {
 } from '@prisma/client';
 import type { OperatorApprovalDto, ListOperatorsQueryDto } from './dto/operator-approval.dto.js';
 import type { CreatePricingRuleDto, UpdatePricingRuleDto } from './dto/pricing-rule.dto.js';
-import type { ListBookingsQueryDto, RefundBookingDto } from './dto/admin-booking.dto.js';
+import type { ListBookingsQueryDto, ListJobsQueryDto, RefundBookingDto } from './dto/admin-booking.dto.js';
 import type { ManualJobAssignmentDto } from './dto/job-assignment.dto.js';
 import type { ReportsQueryDto } from './dto/reports-query.dto.js';
 import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto } from './dto/customer-management.dto.js';
@@ -41,65 +41,310 @@ export class AdminService {
   // =========================================================================
 
   async getDashboard() {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const thisWeekStart = new Date(now);
+    thisWeekStart.setDate(now.getDate() - now.getDay());
+    thisWeekStart.setHours(0, 0, 0, 0);
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const last30Days = new Date(now);
+    last30Days.setDate(now.getDate() - 30);
+    const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+
+    // === PARALLEL QUERIES FOR PERFORMANCE ===
     const [
+      // Overall stats
       totalBookings,
       totalRevenue,
       platformCommission,
+      totalOperatorPayouts,
+      pendingOperatorPayouts,
+      pendingRefunds,
+
+      // Operator stats
       activeOperators,
       pendingApprovals,
       suspendedOperators,
+      rejectedOperators,
+
+      // Job stats
       activeJobs,
       jobsWithNoBids,
+      jobsBiddingClosed,
+      jobsStartingSoon,
+      overdueJobs,
+
+      // Booking status breakdown
+      bookingsByStatus,
+
+      // Time-based analytics
+      todayBookings,
+      todayRevenue,
+      weekBookings,
+      weekRevenue,
+      monthBookings,
+      monthRevenue,
+
+      // Revenue trend data (last 30 days)
+      last30DaysTransactions,
+
+      // Revenue by vehicle type
+      revenueByVehicleType,
+
+      // Completed jobs pending payout
+      completedJobsPendingPayout,
     ] = await Promise.all([
+      // Overall stats
       this.prisma.booking.count(),
       this.prisma.transaction.aggregate({
-        where: { transactionType: 'CUSTOMER_PAYMENT', status: TransactionStatus.COMPLETED },
+        where: { transactionType: TransactionType.CUSTOMER_PAYMENT, status: TransactionStatus.COMPLETED },
         _sum: { amount: true },
       }),
       this.prisma.transaction.aggregate({
-        where: { transactionType: 'PLATFORM_COMMISSION', status: TransactionStatus.COMPLETED },
+        where: { transactionType: TransactionType.PLATFORM_COMMISSION, status: TransactionStatus.COMPLETED },
         _sum: { amount: true },
       }),
+      this.prisma.transaction.aggregate({
+        where: { transactionType: TransactionType.OPERATOR_PAYOUT, status: TransactionStatus.COMPLETED },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { transactionType: TransactionType.OPERATOR_PAYOUT, status: TransactionStatus.PENDING },
+        _sum: { amount: true },
+      }),
+      this.prisma.transaction.aggregate({
+        where: { transactionType: TransactionType.REFUND, status: TransactionStatus.PENDING },
+        _sum: { amount: true },
+      }),
+
+      // Operator stats
       this.prisma.operatorProfile.count({ where: { approvalStatus: OperatorApprovalStatus.APPROVED } }),
       this.prisma.operatorProfile.count({ where: { approvalStatus: OperatorApprovalStatus.PENDING } }),
       this.prisma.operatorProfile.count({ where: { approvalStatus: OperatorApprovalStatus.SUSPENDED } }),
+      this.prisma.operatorProfile.count({ where: { approvalStatus: OperatorApprovalStatus.REJECTED } }),
+
+      // Job stats
       this.prisma.job.count({
-        where: { status: { in: [JobStatus.OPEN_FOR_BIDDING, JobStatus.BIDDING_CLOSED] } },
+        where: { status: { in: [JobStatus.OPEN_FOR_BIDDING, JobStatus.BIDDING_CLOSED, JobStatus.ASSIGNED, JobStatus.IN_PROGRESS] } },
+      }),
+      this.prisma.job.count({ where: { status: JobStatus.NO_BIDS_RECEIVED } }),
+      this.prisma.job.count({ where: { status: JobStatus.BIDDING_CLOSED } }),
+      this.prisma.job.count({
+        where: {
+          status: { in: [JobStatus.OPEN_FOR_BIDDING, JobStatus.BIDDING_CLOSED, JobStatus.NO_BIDS_RECEIVED] },
+          booking: { pickupDatetime: { gte: now, lte: next24Hours } },
+        },
       }),
       this.prisma.job.count({
-        where: { status: JobStatus.NO_BIDS_RECEIVED },
+        where: {
+          status: { in: [JobStatus.ASSIGNED, JobStatus.IN_PROGRESS] },
+          booking: { pickupDatetime: { lt: now } },
+        },
+      }),
+
+      // Booking status breakdown
+      this.prisma.booking.groupBy({
+        by: ['status'],
+        _count: { id: true },
+      }),
+
+      // Time-based analytics
+      this.prisma.booking.count({ where: { createdAt: { gte: today } } }),
+      this.prisma.transaction.aggregate({
+        where: {
+          transactionType: TransactionType.CUSTOMER_PAYMENT,
+          status: TransactionStatus.COMPLETED,
+          createdAt: { gte: today },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.booking.count({ where: { createdAt: { gte: thisWeekStart } } }),
+      this.prisma.transaction.aggregate({
+        where: {
+          transactionType: TransactionType.CUSTOMER_PAYMENT,
+          status: TransactionStatus.COMPLETED,
+          createdAt: { gte: thisWeekStart },
+        },
+        _sum: { amount: true },
+      }),
+      this.prisma.booking.count({ where: { createdAt: { gte: thisMonthStart } } }),
+      this.prisma.transaction.aggregate({
+        where: {
+          transactionType: TransactionType.CUSTOMER_PAYMENT,
+          status: TransactionStatus.COMPLETED,
+          createdAt: { gte: thisMonthStart },
+        },
+        _sum: { amount: true },
+      }),
+
+      // Revenue trend for last 30 days
+      this.prisma.transaction.findMany({
+        where: {
+          transactionType: TransactionType.CUSTOMER_PAYMENT,
+          status: TransactionStatus.COMPLETED,
+          createdAt: { gte: last30Days },
+        },
+        select: {
+          amount: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+
+      // Revenue by vehicle type
+      this.prisma.booking.groupBy({
+        by: ['vehicleType'],
+        where: {
+          transactions: {
+            some: {
+              transactionType: TransactionType.CUSTOMER_PAYMENT,
+              status: TransactionStatus.COMPLETED,
+            },
+          },
+        },
+        _sum: { customerPrice: true },
+        _count: { id: true },
+      }),
+
+      // Completed jobs pending operator payout
+      this.prisma.job.findMany({
+        where: {
+          status: JobStatus.COMPLETED,
+          booking: {
+            transactions: {
+              none: {
+                transactionType: TransactionType.OPERATOR_PAYOUT,
+                status: TransactionStatus.COMPLETED,
+              },
+            },
+          },
+        },
+        include: {
+          assignedOperator: { select: { id: true, companyName: true } },
+          winningBid: { select: { bidAmount: true } },
+          booking: { select: { bookingReference: true, customerPrice: true, pickupDatetime: true } },
+        },
+        orderBy: { completedAt: 'desc' },
+        take: 50,
       }),
     ]);
 
-    // Recent activity
+    // === PROCESS REVENUE TREND DATA ===
+    const dailyRevenue: Record<string, number> = {};
+    last30DaysTransactions.forEach((txn) => {
+      const date = txn.createdAt.toISOString().split('T')[0];
+      dailyRevenue[date] = (dailyRevenue[date] || 0) + Number(txn.amount);
+    });
+
+    const revenueTrend = Object.entries(dailyRevenue)
+      .map(([date, amount]) => ({ date, amount }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    // === PROCESS PENDING PAYOUTS BY OPERATOR ===
+    const payoutsByOperator: Record<string, { operatorId: string; companyName: string; totalDue: number; jobCount: number }> = {};
+
+    completedJobsPendingPayout.forEach((job) => {
+      if (job.assignedOperator && job.winningBid) {
+        const operatorId = job.assignedOperator.id;
+        const amount = Number(job.winningBid.bidAmount);
+
+        if (!payoutsByOperator[operatorId]) {
+          payoutsByOperator[operatorId] = {
+            operatorId,
+            companyName: job.assignedOperator.companyName,
+            totalDue: 0,
+            jobCount: 0,
+          };
+        }
+
+        payoutsByOperator[operatorId].totalDue += amount;
+        payoutsByOperator[operatorId].jobCount += 1;
+      }
+    });
+
+    const pendingPayoutsByOperator = Object.values(payoutsByOperator).sort((a, b) => b.totalDue - a.totalDue);
+
+    // === BOOKING STATUS BREAKDOWN ===
+    const statusBreakdown = bookingsByStatus.reduce((acc, item) => {
+      acc[item.status] = item._count.id;
+      return acc;
+    }, {} as Record<string, number>);
+
+    // === RECENT ACTIVITY ===
     const recentBookings = await this.prisma.booking.findMany({
-      take: 5,
+      take: 10,
       orderBy: { createdAt: 'desc' },
-      select: { id: true, bookingReference: true, status: true, createdAt: true },
+      select: {
+        id: true,
+        bookingReference: true,
+        status: true,
+        pickupAddress: true,
+        dropoffAddress: true,
+        customerPrice: true,
+        vehicleType: true,
+        createdAt: true,
+        customer: { select: { email: true, firstName: true, lastName: true } },
+      },
     });
 
     const recentActivity = recentBookings.map((b) => ({
       type: 'BOOKING',
-      description: `Booking ${b.bookingReference} - ${b.status}`,
+      bookingId: b.id,
+      bookingReference: b.bookingReference,
+      status: b.status,
+      pickupAddress: b.pickupAddress,
+      dropoffAddress: b.dropoffAddress,
+      customerPrice: Number(b.customerPrice),
+      vehicleType: b.vehicleType,
+      customerName: `${b.customer.firstName || ''} ${b.customer.lastName || ''}`.trim() || b.customer.email,
       timestamp: b.createdAt.toISOString(),
     }));
 
-    // Alerts
-    const alerts: Array<{ type: string; message: string; severity: 'INFO' | 'WARNING' | 'ERROR' }> = [];
+    // === ALERTS ===
+    const alerts: Array<{ type: string; message: string; severity: 'INFO' | 'WARNING' | 'ERROR'; count?: number }> = [];
 
     if (pendingApprovals > 0) {
       alerts.push({
         type: 'OPERATOR_APPROVAL',
         message: `${pendingApprovals} operator(s) pending approval`,
         severity: 'WARNING',
+        count: pendingApprovals,
       });
     }
 
     if (jobsWithNoBids > 0) {
       alerts.push({
         type: 'NO_BIDS',
-        message: `${jobsWithNoBids} job(s) with no bids - requires escalation`,
+        message: `${jobsWithNoBids} job(s) with no bids - requires immediate escalation`,
         severity: 'ERROR',
+        count: jobsWithNoBids,
+      });
+    }
+
+    if (jobsBiddingClosed > 0) {
+      alerts.push({
+        type: 'BIDDING_CLOSED',
+        message: `${jobsBiddingClosed} job(s) with closed bidding waiting for assignment`,
+        severity: 'WARNING',
+        count: jobsBiddingClosed,
+      });
+    }
+
+    if (jobsStartingSoon > 0) {
+      alerts.push({
+        type: 'STARTING_SOON',
+        message: `${jobsStartingSoon} job(s) starting within 24 hours - check assignment status`,
+        severity: 'WARNING',
+        count: jobsStartingSoon,
+      });
+    }
+
+    if (overdueJobs > 0) {
+      alerts.push({
+        type: 'OVERDUE_JOBS',
+        message: `${overdueJobs} job(s) overdue - pickup time passed but not completed`,
+        severity: 'ERROR',
+        count: overdueJobs,
       });
     }
 
@@ -108,21 +353,91 @@ export class AdminService {
         type: 'SUSPENDED_OPERATORS',
         message: `${suspendedOperators} operator(s) currently suspended`,
         severity: 'INFO',
+        count: suspendedOperators,
       });
     }
 
+    const totalPendingPayouts = pendingPayoutsByOperator.reduce((sum, op) => sum + op.totalDue, 0);
+    if (totalPendingPayouts > 0) {
+      alerts.push({
+        type: 'PENDING_PAYOUTS',
+        message: `£${totalPendingPayouts.toFixed(2)} due to operators for ${completedJobsPendingPayout.length} completed jobs`,
+        severity: 'WARNING',
+        count: completedJobsPendingPayout.length,
+      });
+    }
+
+    // === CALCULATE NET PROFIT ===
+    const totalPlatformCommission = Number(platformCommission._sum.amount) || 0;
+    const totalPayoutsCompleted = Number(totalOperatorPayouts._sum.amount) || 0;
+    const netProfit = totalPlatformCommission - totalPayoutsCompleted;
+
     return {
+      // Financial Overview
+      financialOverview: {
+        totalRevenue: Number(totalRevenue._sum.amount) || 0,
+        platformCommission: totalPlatformCommission,
+        operatorPayoutsCompleted: totalPayoutsCompleted,
+        operatorPayoutsPending: Number(pendingOperatorPayouts._sum.amount) || 0,
+        pendingRefunds: Number(pendingRefunds._sum.amount) || 0,
+        netProfit,
+        totalPendingPayoutsDue: totalPendingPayouts,
+      },
+
+      // KPIs
       kpis: {
         totalBookings,
-        totalRevenue: Number(totalRevenue._sum.amount) || 0,
-        platformCommission: Number(platformCommission._sum.amount) || 0,
         activeOperators,
         pendingOperatorApprovals: pendingApprovals,
         suspendedOperators,
+        rejectedOperators,
         activeJobs,
         jobsWithNoBids,
+        jobsBiddingClosed,
+        jobsStartingSoon,
+        overdueJobs,
       },
+
+      // Time-based Analytics
+      analytics: {
+        today: {
+          bookings: todayBookings,
+          revenue: Number(todayRevenue._sum.amount) || 0,
+        },
+        thisWeek: {
+          bookings: weekBookings,
+          revenue: Number(weekRevenue._sum.amount) || 0,
+        },
+        thisMonth: {
+          bookings: monthBookings,
+          revenue: Number(monthRevenue._sum.amount) || 0,
+        },
+      },
+
+      // Booking Status Breakdown
+      bookingStatusBreakdown: statusBreakdown,
+
+      // Revenue by Vehicle Type (for charts)
+      revenueByVehicleType: revenueByVehicleType.map((item) => ({
+        vehicleType: item.vehicleType,
+        totalRevenue: Number(item._sum.customerPrice) || 0,
+        bookingCount: item._count.id,
+      })),
+
+      // Revenue Trend (for line chart)
+      revenueTrend,
+
+      // Pending Payouts by Operator
+      pendingPayouts: {
+        totalAmount: totalPendingPayouts,
+        jobCount: completedJobsPendingPayout.length,
+        byOperator: pendingPayoutsByOperator,
+      },
+
+      // Recent Activity
       recentActivity,
+
+      // Alerts
       alerts,
     };
   }
@@ -1160,10 +1475,7 @@ export class AdminService {
   // JOB MANAGEMENT
   // =========================================================================
 
-  /**
-   * List all jobs with filters and pagination
-   */
-  async listJobs(query: ListBookingsQueryDto) {
+  async listJobs(query: ListJobsQueryDto) {
     const { status, dateFrom, dateTo, search, page, limit } = query;
     const skip = (page - 1) * limit;
 

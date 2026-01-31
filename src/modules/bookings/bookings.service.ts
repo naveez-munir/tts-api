@@ -11,6 +11,34 @@ import type { BookingResponse, BookingGroupResponse, CustomerBookingsResponse } 
 import { Booking, BookingStatus, JourneyType, BookingGroup, DiscountType, VehicleType, JobStatus, TransactionType, BidStatus, BookingStop } from '@prisma/client';
 import { Prisma } from '@prisma/client';
 
+// Type for assigned operator info
+type AssignedOperatorInfo = {
+  id: string;
+  companyName: string;
+  emergencyContactPhone: string | null;
+};
+
+// Type for driver details info
+type DriverDetailsInfo = {
+  id: string;
+  driverName: string;
+  driverPhone: string;
+  vehicleRegistration: string;
+  vehicleMake: string | null;
+  vehicleModel: string | null;
+  vehicleColor: string | null;
+  taxiLicenceNumber: string | null;
+  issuingCouncil: string | null;
+};
+
+// Type for job with operator and driver details
+type JobWithDetails = {
+  id: string;
+  status: string;
+  assignedOperator: AssignedOperatorInfo | null;
+  driverDetails: DriverDetailsInfo | null;
+};
+
 // Type for booking with group, linked booking, and stops
 type BookingWithRelations = Booking & {
   bookingGroup?: BookingGroup | null;
@@ -18,6 +46,7 @@ type BookingWithRelations = Booking & {
   pairedBooking?: Booking | null;
   customer?: { id: string; firstName: string; lastName: string; email: string; phoneNumber: string | null } | null;
   stops?: BookingStop[];
+  job?: JobWithDetails | null;
 };
 
 // Time window for duplicate detection (in minutes)
@@ -294,6 +323,30 @@ export class BookingsService {
         pairedBooking: true,
         customer: true,
         stops: { orderBy: { stopOrder: 'asc' } },
+        job: {
+          include: {
+            assignedOperator: {
+              select: {
+                id: true,
+                companyName: true,
+                emergencyContactPhone: true,
+              },
+            },
+            driverDetails: {
+              select: {
+                id: true,
+                driverName: true,
+                driverPhone: true,
+                vehicleRegistration: true,
+                vehicleMake: true,
+                vehicleModel: true,
+                vehicleColor: true,
+                taxiLicenceNumber: true,
+                issuingCouncil: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -313,6 +366,30 @@ export class BookingsService {
         pairedBooking: true,
         customer: true,
         stops: { orderBy: { stopOrder: 'asc' } },
+        job: {
+          include: {
+            assignedOperator: {
+              select: {
+                id: true,
+                companyName: true,
+                emergencyContactPhone: true,
+              },
+            },
+            driverDetails: {
+              select: {
+                id: true,
+                driverName: true,
+                driverPhone: true,
+                vehicleRegistration: true,
+                vehicleMake: true,
+                vehicleModel: true,
+                vehicleColor: true,
+                taxiLicenceNumber: true,
+                issuingCouncil: true,
+              },
+            },
+          },
+        },
       },
     });
 
@@ -632,6 +709,10 @@ export class BookingsService {
       customerName: booking.customerName || (bookingWithRelations.customer ? `${bookingWithRelations.customer.firstName} ${bookingWithRelations.customer.lastName}` : null),
       customerEmail: booking.customerEmail || bookingWithRelations.customer?.email || null,
       customerPhone: booking.customerPhone || bookingWithRelations.customer?.phoneNumber || null,
+      // Assigned operator info (if operator is assigned)
+      assignedOperator: bookingWithRelations.job?.assignedOperator || null,
+      // Driver details (if driver details are submitted)
+      driverDetails: bookingWithRelations.job?.driverDetails || null,
     };
   }
 

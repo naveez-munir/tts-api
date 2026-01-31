@@ -13,6 +13,30 @@ export const StopResponseSchema = z.object({
 
 export type StopResponse = z.infer<typeof StopResponseSchema>;
 
+// Assigned operator response schema
+export const AssignedOperatorResponseSchema = z.object({
+  id: z.string(),
+  companyName: z.string(),
+  emergencyContactPhone: z.string().nullable(),
+});
+
+export type AssignedOperatorResponse = z.infer<typeof AssignedOperatorResponseSchema>;
+
+// Driver details response schema
+export const DriverDetailsResponseSchema = z.object({
+  id: z.string(),
+  driverName: z.string(),
+  driverPhone: z.string(),
+  vehicleRegistration: z.string(),
+  vehicleMake: z.string().nullable(),
+  vehicleModel: z.string().nullable(),
+  vehicleColor: z.string().nullable(),
+  taxiLicenceNumber: z.string().nullable(),
+  issuingCouncil: z.string().nullable(),
+});
+
+export type DriverDetailsResponse = z.infer<typeof DriverDetailsResponseSchema>;
+
 // Single booking response
 export const BookingResponseSchema = z.object({
   id: z.string(),
@@ -48,6 +72,10 @@ export const BookingResponseSchema = z.object({
   customerName: z.string().nullable().optional(),
   customerEmail: z.string().nullable().optional(),
   customerPhone: z.string().nullable().optional(),
+  // Assigned operator info (if operator is assigned)
+  assignedOperator: AssignedOperatorResponseSchema.nullable().optional(),
+  // Driver details (if driver details are submitted)
+  driverDetails: DriverDetailsResponseSchema.nullable().optional(),
 });
 
 export type BookingResponse = z.infer<typeof BookingResponseSchema>;

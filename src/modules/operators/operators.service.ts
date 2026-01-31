@@ -533,8 +533,12 @@ export class OperatorsService {
     for (const field of documentFields) {
       const value = driver[field as keyof Driver];
       if (value && typeof value === 'string') {
-        const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
-        result[field] = downloadUrl;
+        if (value.startsWith('http')) {
+          result[field] = value;
+        } else {
+          const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
+          result[field] = downloadUrl;
+        }
       }
     }
 
@@ -553,8 +557,12 @@ export class OperatorsService {
     for (const field of documentFields) {
       const value = vehicle[field as keyof Vehicle];
       if (value && typeof value === 'string') {
-        const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
-        result[field] = downloadUrl;
+        if (value.startsWith('http')) {
+          result[field] = value;
+        } else {
+          const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
+          result[field] = downloadUrl;
+        }
       }
     }
 
@@ -576,7 +584,21 @@ export class OperatorsService {
       include: { photos: true },
     });
 
-    return Promise.all(vehicles.map((vehicle) => this.generateVehicleDocumentUrls(vehicle)));
+    return Promise.all(
+      vehicles.map(async (vehicle) => {
+        const vehicleWithUrls = await this.generateVehicleDocumentUrls(vehicle);
+        const photosWithUrls = await Promise.all(
+          vehicle.photos.map(async (photo) => {
+            if (photo.photoUrl.startsWith('http')) {
+              return photo;
+            }
+            const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+            return { ...photo, photoUrl: downloadUrl };
+          })
+        );
+        return { ...vehicleWithUrls, photos: photosWithUrls };
+      })
+    );
   }
 
   async getVehicle(userId: string, vehicleId: string) {
@@ -605,6 +627,9 @@ export class OperatorsService {
 
     const photosWithUrls = await Promise.all(
       vehicle.photos.map(async (photo) => {
+        if (photo.photoUrl.startsWith('http')) {
+          return photo;
+        }
         const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
         return { ...photo, photoUrl: downloadUrl };
       })
@@ -915,6 +940,9 @@ export class OperatorsService {
 
     return Promise.all(
       vehicle.photos.map(async (photo) => {
+        if (photo.photoUrl.startsWith('http')) {
+          return photo;
+        }
         const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
         return { ...photo, photoUrl: downloadUrl };
       })
@@ -942,28 +970,51 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to update this vehicle');
     }
 
-    const photos = await Promise.all(
-      dto.photos.map(async (photo) => {
-        return this.prisma.vehiclePhoto.upsert({
-          where: {
-            vehicleId_photoType: {
-              vehicleId,
-              photoType: photo.photoType as VehiclePhotoType,
-            },
+    // Get photo types being provided in the request
+    const providedPhotoTypes = dto.photos.map(p => p.photoType);
+
+    // All possible photo types
+    const allPhotoTypes: VehiclePhotoType[] = ['FRONT', 'BACK', 'DRIVER_SIDE', 'FRONT_SIDE', 'DASHBOARD', 'REAR_BOOT'];
+
+    // Photo types to delete (not in the provided list)
+    const photoTypesToDelete = allPhotoTypes.filter(type => !providedPhotoTypes.includes(type));
+
+    // Delete photos that are not in the provided list
+    if (photoTypesToDelete.length > 0) {
+      await this.prisma.vehiclePhoto.deleteMany({
+        where: {
+          vehicleId,
+          photoType: {
+            in: photoTypesToDelete as VehiclePhotoType[],
           },
-          update: {
-            photoUrl: photo.photoUrl,
-          },
-          create: {
-            vehicleId,
-            photoType: photo.photoType as VehiclePhotoType,
-            photoUrl: photo.photoUrl,
-          },
-        });
-      })
-    );
+        },
+      });
+    }
+
+    // Upsert provided photos
+    const photos = dto.photos.length > 0
+      ? await Promise.all(
+          dto.photos.map(async (photo) => {
+            return this.prisma.vehiclePhoto.upsert({
+              where: {
+                vehicleId_photoType: {
+                  vehicleId,
+                  photoType: photo.photoType as VehiclePhotoType,
+                },
+              },
+              update: {
+                photoUrl: photo.photoUrl,
+              },
+              create: {
+                vehicleId,
+                photoType: photo.photoType as VehiclePhotoType,
+                photoUrl: photo.photoUrl,
+              },
+            });
+          })
+        )
+      : [];
 
     return photos;
   }
 }
-
