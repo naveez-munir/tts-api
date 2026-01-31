@@ -55,6 +55,35 @@ export class PayoutsController {
   }
 
   /**
+   * Get payouts forecast - shows ALL completed jobs with eligibility status (admin only)
+   * Includes: eligible (ready now), pending (in hold period), held back (last 2 jobs)
+   */
+  @Get('forecast')
+  @Roles(UserRole.ADMIN)
+  async getPayoutsForecast() {
+    const forecast = await this.payoutsService.getPayoutsForecast();
+
+    const totals = forecast.reduce(
+      (acc, op) => ({
+        totalEligible: acc.totalEligible + op.summary.totalEligible,
+        totalPending: acc.totalPending + op.summary.totalPending,
+        totalHeldBack: acc.totalHeldBack + op.summary.totalHeldBack,
+        totalAmount: acc.totalAmount + op.summary.totalAmount,
+      }),
+      { totalEligible: 0, totalPending: 0, totalHeldBack: 0, totalAmount: 0 }
+    );
+
+    return {
+      success: true,
+      data: forecast,
+      meta: {
+        operatorCount: forecast.length,
+        ...totals,
+      },
+    };
+  }
+
+  /**
    * Get processing payouts - waiting for admin to complete (admin only)
    */
   @Get('processing')

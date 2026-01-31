@@ -402,6 +402,113 @@ export class PayoutsService {
   }
 
   /**
+   * Get payouts forecast - shows ALL completed jobs with eligibility status
+   * This gives admin visibility into: eligible now, pending (in hold period), and held back jobs
+   */
+  async getPayoutsForecast(): Promise<any[]> {
+    const settings = await this.getPayoutSettings();
+    const now = new Date();
+    const eligibilityCutoff = new Date(now);
+    eligibilityCutoff.setDate(eligibilityCutoff.getDate() - settings.initialDelayDays);
+
+    // Get all operators
+    const operators = await this.prisma.operatorProfile.findMany({
+      where: {
+        approvalStatus: OperatorApprovalStatus.APPROVED,
+      },
+      include: {
+        user: { select: { email: true } },
+      },
+    });
+
+    const forecast: any[] = [];
+
+    for (const operator of operators) {
+      // Get ALL completed jobs that haven't been paid out yet
+      const allJobs = await this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: operator.id,
+          status: JobStatus.COMPLETED,
+          payoutStatus: {
+            notIn: [PayoutStatus.PROCESSING, PayoutStatus.COMPLETED],
+          },
+        },
+        include: {
+          booking: { select: { bookingReference: true } },
+          winningBid: { select: { bidAmount: true } },
+        },
+        orderBy: { completedAt: 'asc' },
+      });
+
+      if (allJobs.length === 0) continue;
+
+      // Categorize jobs
+      const eligibleJobs: any[] = [];
+      const pendingJobs: any[] = []; // Within 14-day hold
+      const heldBackJobs: any[] = []; // Last 2 jobs
+
+      // Determine which jobs are held back (last X jobs)
+      const jobsHeldBackCount = Math.min(settings.jobsHeldBack, allJobs.length);
+      const heldBackIds = new Set(
+        allJobs.slice(-jobsHeldBackCount).map(j => j.id)
+      );
+
+      for (const job of allJobs) {
+        const bidAmount = Number(job.winningBid?.bidAmount || 0);
+        const jobData = {
+          id: job.id,
+          bookingReference: job.booking.bookingReference,
+          bidAmount,
+          completedAt: job.completedAt!,
+        };
+
+        // Check if held back
+        if (heldBackIds.has(job.id)) {
+          heldBackJobs.push(jobData);
+          continue;
+        }
+
+        // Check if meets 14-day eligibility
+        if (job.completedAt && job.completedAt <= eligibilityCutoff) {
+          eligibleJobs.push(jobData);
+        } else {
+          pendingJobs.push(jobData);
+        }
+      }
+
+      const totalEligible = eligibleJobs.reduce((sum, j) => sum + j.bidAmount, 0);
+      const totalPending = pendingJobs.reduce((sum, j) => sum + j.bidAmount, 0);
+      const totalHeldBack = heldBackJobs.reduce((sum, j) => sum + j.bidAmount, 0);
+
+      forecast.push({
+        operatorId: operator.id,
+        companyName: operator.companyName,
+        contactEmail: operator.user.email,
+        bankAccountName: operator.bankAccountName,
+        bankAccountNumber: operator.bankAccountNumber,
+        bankSortCode: operator.bankSortCode,
+        summary: {
+          totalEligible,
+          totalPending,
+          totalHeldBack,
+          eligibleJobCount: eligibleJobs.length,
+          pendingJobCount: pendingJobs.length,
+          heldBackJobCount: heldBackJobs.length,
+          totalAmount: totalEligible + totalPending + totalHeldBack,
+          totalJobCount: allJobs.length,
+        },
+        jobs: {
+          eligible: eligibleJobs,
+          pending: pendingJobs,
+          heldBack: heldBackJobs,
+        },
+      });
+    }
+
+    return forecast;
+  }
+
+  /**
    * Get processing payouts (waiting for admin to complete)
    */
   async getProcessingPayouts(): Promise<any[]> {

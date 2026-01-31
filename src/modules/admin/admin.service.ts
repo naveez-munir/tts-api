@@ -1214,30 +1214,41 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        include: {
-          customer: { select: { email: true, firstName: true, lastName: true } },
-          job: {
-            include: {
-              bids: { orderBy: { bidAmount: 'asc' }, take: 1 },
-            },
+        select: {
+          id: true,
+          bookingReference: true,
+          status: true,
+          pickupAddress: true,
+          dropoffAddress: true,
+          pickupDatetime: true,
+          customerPrice: true,
+          customer: {
+            select: {
+              firstName: true,
+              lastName: true,
+              email: true,
+            }
           },
-          transactions: true,
-          bookingGroup: { select: { id: true, groupReference: true, status: true } },
-          stops: { orderBy: { stopOrder: 'asc' } },
         },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.booking.count({ where }),
     ]);
 
-    // Transform bookings to include journey info
+    // Format the response with minimal data
     const bookingsWithJourneyInfo = bookings.map((b) => ({
-      ...b,
-      journeyInfo: {
-        journeyType: b.journeyType,
-        isReturnJourney: b.bookingGroupId !== null,
-        groupReference: b.bookingGroup?.groupReference || null,
-        groupStatus: b.bookingGroup?.status || null,
+      id: b.id,
+      bookingReference: b.bookingReference,
+      status: b.status,
+      route: {
+        pickup: b.pickupAddress,
+        dropoff: b.dropoffAddress,
+      },
+      pickupDatetime: b.pickupDatetime.toISOString(),
+      customerPrice: Number(b.customerPrice),
+      customer: {
+        name: `${b.customer.firstName || ''} ${b.customer.lastName || ''}`.trim() || b.customer.email,
+        email: b.customer.email,
       },
     }));
 
@@ -1505,26 +1516,25 @@ export class AdminService {
         where,
         skip,
         take: limit,
-        include: {
+        select: {
+          id: true,
+          status: true,
           booking: {
             select: {
               bookingReference: true,
               pickupAddress: true,
-              dropoffAddress: true,
               pickupDatetime: true,
               customerPrice: true,
-              vehicleType: true,
-              customer: { select: { email: true, firstName: true, lastName: true } },
             },
           },
-          bids: {
-            orderBy: { bidAmount: 'asc' },
-            include: {
-              operator: { select: { id: true, companyName: true, reputationScore: true } },
+          _count: {
+            select: { bids: true },
+          },
+          winningBid: {
+            select: {
+              bidAmount: true,
             },
           },
-          assignedOperator: { select: { id: true, companyName: true } },
-          winningBid: true,
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -1535,15 +1545,12 @@ export class AdminService {
       jobs: jobs.map((j) => ({
         id: j.id,
         status: j.status,
-        booking: j.booking,
-        bidsCount: j.bids.length,
-        lowestBid: j.bids[0] ? Number(j.bids[0].bidAmount) : null,
-        assignedOperator: j.assignedOperator,
-        winningBid: j.winningBid ? { id: j.winningBid.id, amount: Number(j.winningBid.bidAmount) } : null,
-        platformMargin: j.platformMargin ? Number(j.platformMargin) : null,
-        biddingWindowOpensAt: j.biddingWindowOpensAt.toISOString(),
-        biddingWindowClosesAt: j.biddingWindowClosesAt.toISOString(),
-        createdAt: j.createdAt.toISOString(),
+        bookingReference: j.booking.bookingReference,
+        pickupLocation: j.booking.pickupAddress,
+        pickupTime: j.booking.pickupDatetime.toISOString(),
+        customerPrice: Number(j.booking.customerPrice),
+        bidsCount: j._count.bids,
+        winningBid: j.winningBid ? Number(j.winningBid.bidAmount) : null,
       })),
       meta: {
         page,
