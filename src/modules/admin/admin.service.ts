@@ -1489,10 +1489,19 @@ export class AdminService {
   async listJobs(query: ListJobsQueryDto) {
     const { status, dateFrom, dateTo, search, page, limit } = query;
     const skip = (page - 1) * limit;
+    const now = new Date();
+    const next24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
     const where: Prisma.JobWhereInput = {};
+    const bookingFilters: Prisma.BookingWhereInput[] = [];
 
-    if (status) {
+    if (status === 'OVERDUE') {
+      where.status = { in: [JobStatus.ASSIGNED, JobStatus.IN_PROGRESS] };
+      bookingFilters.push({ pickupDatetime: { lt: now } });
+    } else if (status === 'STARTING_SOON') {
+      where.status = { in: [JobStatus.OPEN_FOR_BIDDING, JobStatus.BIDDING_CLOSED, JobStatus.NO_BIDS_RECEIVED] };
+      bookingFilters.push({ pickupDatetime: { gte: now, lte: next24Hours } });
+    } else if (status) {
       where.status = status as JobStatus;
     }
 
@@ -1503,12 +1512,16 @@ export class AdminService {
     }
 
     if (search) {
-      where.booking = {
+      bookingFilters.push({
         OR: [
           { bookingReference: { contains: search, mode: 'insensitive' } },
           { pickupAddress: { contains: search, mode: 'insensitive' } },
         ],
-      };
+      });
+    }
+
+    if (bookingFilters.length > 0) {
+      where.booking = bookingFilters.length === 1 ? bookingFilters[0] : { AND: bookingFilters };
     }
 
     const [jobs, total] = await Promise.all([

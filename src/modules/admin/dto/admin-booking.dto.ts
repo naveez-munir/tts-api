@@ -12,7 +12,7 @@ export const ListBookingsQuerySchema = z.object({
 export type ListBookingsQueryDto = z.infer<typeof ListBookingsQuerySchema>;
 
 export const ListJobsQuerySchema = z.object({
-  status: z.enum(['OPEN_FOR_BIDDING', 'BIDDING_CLOSED', 'NO_BIDS_RECEIVED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'PENDING_ACCEPTANCE']).optional(),
+  status: z.enum(['OPEN_FOR_BIDDING', 'BIDDING_CLOSED', 'NO_BIDS_RECEIVED', 'ASSIGNED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'PENDING_ACCEPTANCE', 'OVERDUE', 'STARTING_SOON']).optional(),
   dateFrom: z.string().optional(),
   dateTo: z.string().optional(),
   search: z.string().optional(),
