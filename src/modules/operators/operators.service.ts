@@ -172,6 +172,24 @@ export class OperatorsService {
       throw new NotFoundException(`Operator profile not found for user ${userId}`);
     }
 
+    // Handle service areas update if provided
+    if (dto.serviceAreas !== undefined) {
+      // Delete existing service areas
+      await this.prisma.serviceArea.deleteMany({
+        where: { operatorId: profile.id },
+      });
+
+      // Create new service areas
+      if (dto.serviceAreas.length > 0) {
+        await this.prisma.serviceArea.createMany({
+          data: dto.serviceAreas.map((postcode) => ({
+            operatorId: profile.id,
+            postcode,
+          })),
+        });
+      }
+    }
+
     return this.prisma.operatorProfile.update({
       where: { id: profile.id },
       data: {

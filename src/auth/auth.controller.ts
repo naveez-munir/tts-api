@@ -26,6 +26,8 @@ import { ResendOtpSchema } from './dto/resend-otp.dto.js';
 import type { ResendOtpDto } from './dto/resend-otp.dto.js';
 import { ChangePasswordSchema } from './dto/change-password.dto.js';
 import type { ChangePasswordDto } from './dto/change-password.dto.js';
+import { CheckEmailSchema } from './dto/check-email.dto.js';
+import type { CheckEmailDto } from './dto/check-email.dto.js';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe.js';
 import { ResendService } from '../integrations/resend/resend.service.js';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard.js';
@@ -41,6 +43,20 @@ export class AuthController {
     private readonly usersService: UsersService,
     private readonly resendService: ResendService,
   ) {}
+
+  @Post('check-email')
+  @Throttle({ default: { limit: 10, ttl: 60000 } }) // 10 requests per 60 seconds
+  async checkEmail(
+    @Body(new ZodValidationPipe(CheckEmailSchema)) dto: CheckEmailDto,
+  ) {
+    const existingUser = await this.usersService.findByEmail(dto.email);
+    return {
+      success: true,
+      data: {
+        available: !existingUser,
+      },
+    };
+  }
 
   @Post('register')
   @Throttle({ default: { limit: 3, ttl: 60000 } }) // 3 requests per 60 seconds

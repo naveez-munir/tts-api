@@ -12,6 +12,7 @@ export const UpdateOperatorProfileSchema = z.object({
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
   vehicleTypes: z.array(VehicleTypeSchema).optional(),
+  serviceAreas: z.array(z.string()).optional(),
 });
 
 export type UpdateOperatorProfileDto = z.infer<typeof UpdateOperatorProfileSchema>;
