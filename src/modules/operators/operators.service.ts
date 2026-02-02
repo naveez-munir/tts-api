@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
-import { OperatorProfile, OperatorApprovalStatus, JobStatus, BidStatus, Driver, Vehicle, VehiclePhotoType } from '@prisma/client';
+import { OperatorProfile, OperatorApprovalStatus, JobStatus, BidStatus, Driver, Vehicle, VehiclePhotoType, PayoutStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import type { RegisterOperatorDto } from './dto/register-operator.dto.js';
 import type { UpdateOperatorProfileDto } from './dto/update-operator-profile.dto.js';
@@ -125,29 +125,70 @@ export class OperatorsService {
       throw new NotFoundException(`Operator profile not found for user ${userId}`);
     }
 
-    // Get stats
-    const totalBids = await this.prisma.bid.count({
-      where: { operatorId: profile.id },
-    });
+    const [totalBids, wonBids, availableJobs, unpaidJobs, completedPayouts, processingPayouts] = await Promise.all([
+      this.prisma.bid.count({
+        where: { operatorId: profile.id },
+      }),
 
-    const wonBids = await this.prisma.bid.count({
-      where: {
-        operatorId: profile.id,
-        status: 'WON',
-      },
-    });
+      this.prisma.bid.count({
+        where: {
+          operatorId: profile.id,
+          status: 'WON',
+        },
+      }),
 
-    // Use the correct JobStatus enum value
-    const availableJobs = await this.prisma.job.findMany({
-      where: {
-        status: JobStatus.OPEN_FOR_BIDDING,
-        booking: {
-          pickupPostcode: {
-            startsWith: profile.serviceAreas[0]?.postcode.substring(0, 3) || '',
+      this.prisma.job.findMany({
+        where: {
+          status: JobStatus.OPEN_FOR_BIDDING,
+          booking: {
+            pickupPostcode: {
+              startsWith: profile.serviceAreas[0]?.postcode.substring(0, 3) || '',
+            },
           },
         },
-      },
-    });
+      }),
+
+      this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: profile.id,
+          status: JobStatus.COMPLETED,
+          payoutStatus: {
+            in: [PayoutStatus.PENDING, PayoutStatus.NOT_ELIGIBLE]
+          }
+        },
+        select: {
+          winningBid: {
+            select: { bidAmount: true }
+          }
+        }
+      }),
+
+      this.prisma.job.aggregate({
+        where: {
+          assignedOperatorId: profile.id,
+          status: JobStatus.COMPLETED,
+          payoutStatus: PayoutStatus.COMPLETED
+        },
+        _sum: {
+          platformMargin: true
+        }
+      }),
+
+      this.prisma.job.aggregate({
+        where: {
+          assignedOperatorId: profile.id,
+          status: JobStatus.COMPLETED,
+          payoutStatus: PayoutStatus.PROCESSING
+        },
+        _sum: {
+          platformMargin: true
+        }
+      })
+    ]);
+
+    const totalPendingEarnings = unpaidJobs.reduce((sum, job) => sum + Number(job.winningBid?.bidAmount || 0), 0);
+    const completedPayoutsAmount = Number(completedPayouts._sum.platformMargin || 0);
+    const processingPayoutsAmount = Number(processingPayouts._sum.platformMargin || 0);
 
     return {
       profile,
@@ -159,6 +200,10 @@ export class OperatorsService {
         totalJobs: profile.totalJobs,
         completedJobs: profile.completedJobs,
         approvalStatus: profile.approvalStatus,
+        totalPendingEarnings,
+        completedPayouts: completedPayoutsAmount,
+        processingPayouts: processingPayoutsAmount,
+        unpaidJobCount: unpaidJobs.length,
       },
     };
   }

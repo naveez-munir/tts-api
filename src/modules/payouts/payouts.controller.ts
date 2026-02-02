@@ -5,6 +5,7 @@ import {
   Body,
   UseGuards,
   NotFoundException,
+  Query,
 } from '@nestjs/common';
 import { PayoutsService } from './payouts.service.js';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -154,13 +155,15 @@ export class PayoutsController {
     };
   }
 
-  /**
-   * Get operator's own earnings (operator only)
-   */
   @Get('my-earnings')
   @Roles(UserRole.OPERATOR)
-  async getMyEarnings(@CurrentUser() user: { id: string }) {
-    // Look up operator profile by userId (consistent with other endpoints)
+  async getMyEarnings(
+    @CurrentUser() user: { id: string },
+    @Query('days') days?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('all') all?: string,
+  ) {
     const operatorProfile = await this.prisma.operatorProfile.findUnique({
       where: { userId: user.id },
     });
@@ -169,7 +172,14 @@ export class PayoutsController {
       throw new NotFoundException('Operator profile not found');
     }
 
-    const earnings = await this.payoutsService.getOperatorEarnings(operatorProfile.id);
+    const options = {
+      days: days ? parseInt(days, 10) : 14,
+      from: from ? new Date(from) : undefined,
+      to: to ? new Date(to) : undefined,
+      all: all === 'true'
+    };
+
+    const earnings = await this.payoutsService.getOperatorEarnings(operatorProfile.id, options);
     return {
       success: true,
       data: earnings,

@@ -566,56 +566,240 @@ export class PayoutsService {
     return Object.values(grouped);
   }
 
-  /**
-   * Get operator's earnings summary
-   */
-  async getOperatorEarnings(operatorId: string): Promise<{
-    totalEarnings: number;
-    pendingPayouts: number;
-    completedPayouts: number;
-    processingPayouts: number;
-  }> {
-    // Get all completed jobs for this operator
-    const jobs = await this.prisma.job.findMany({
-      where: {
-        assignedOperatorId: operatorId,
-        status: JobStatus.COMPLETED,
-      },
-      include: {
-        winningBid: {
-          select: { bidAmount: true },
+  async getOperatorEarnings(
+    operatorId: string,
+    options?: {
+      days?: number;
+      from?: Date;
+      to?: Date;
+      all?: boolean;
+    }
+  ): Promise<any> {
+    const settings = await this.getPayoutSettings();
+    const now = new Date();
+    const eligibilityCutoff = new Date(now);
+    eligibilityCutoff.setDate(eligibilityCutoff.getDate() - settings.initialDelayDays);
+
+    let jobDateFilter = {};
+    if (!options?.all) {
+      const daysBack = options?.days || 14;
+      const dateFrom = options?.from || new Date(now.getTime() - (daysBack * 24 * 60 * 60 * 1000));
+      const dateTo = options?.to || now;
+
+      jobDateFilter = {
+        completedAt: {
+          gte: dateFrom,
+          lte: dateTo
+        }
+      };
+    }
+
+    const [unpaidJobsInRange, unpaidJobsSummary, paidOutTotal, processingTotal, bankDetails] = await Promise.all([
+      this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: {
+            in: [PayoutStatus.PENDING, PayoutStatus.NOT_ELIGIBLE]
+          },
+          ...jobDateFilter
         },
-      },
-    });
+        select: {
+          id: true,
+          completedAt: true,
+          payoutStatus: true,
+          winningBid: {
+            select: { bidAmount: true }
+          },
+          booking: {
+            select: {
+              bookingReference: true,
+              pickupAddress: true,
+              dropoffAddress: true
+            }
+          }
+        },
+        orderBy: { completedAt: 'desc' }
+      }),
 
-    let totalEarnings = 0;
-    let pendingPayouts = 0;
-    let completedPayouts = 0;
-    let processingPayouts = 0;
+      this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: {
+            in: [PayoutStatus.PENDING, PayoutStatus.NOT_ELIGIBLE]
+          }
+        },
+        select: {
+          id: true,
+          completedAt: true,
+          winningBid: {
+            select: { bidAmount: true }
+          }
+        },
+        orderBy: { completedAt: 'asc' }
+      }),
 
-    for (const job of jobs) {
+      this.prisma.job.aggregate({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: PayoutStatus.COMPLETED
+        },
+        _sum: {
+          platformMargin: true
+        },
+        _count: true
+      }),
+
+      this.prisma.job.aggregate({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: PayoutStatus.PROCESSING
+        },
+        _sum: {
+          platformMargin: true
+        }
+      }),
+
+      this.prisma.operatorProfile.findUnique({
+        where: { id: operatorId },
+        select: {
+          bankAccountName: true,
+          bankAccountNumber: true,
+          bankSortCode: true
+        }
+      })
+    ]);
+
+    const jobsHeldBackCount = Math.min(settings.jobsHeldBack, unpaidJobsSummary.length);
+    const heldBackIds = new Set(
+      unpaidJobsSummary.slice(-jobsHeldBackCount).map(j => j.id)
+    );
+
+    let eligibleTotal = 0;
+    let inHoldTotal = 0;
+    let heldBackTotal = 0;
+
+    for (const job of unpaidJobsSummary) {
       const bidAmount = Number(job.winningBid?.bidAmount || 0);
-      totalEarnings += bidAmount;
 
-      switch (job.payoutStatus) {
-        case PayoutStatus.PENDING:
-        case PayoutStatus.NOT_ELIGIBLE:
-          pendingPayouts += bidAmount;
-          break;
-        case PayoutStatus.PROCESSING:
-          processingPayouts += bidAmount;
-          break;
-        case PayoutStatus.COMPLETED:
-          completedPayouts += bidAmount;
-          break;
+      if (heldBackIds.has(job.id)) {
+        heldBackTotal += bidAmount;
+      } else if (job.completedAt && job.completedAt <= eligibilityCutoff) {
+        eligibleTotal += bidAmount;
+      } else {
+        inHoldTotal += bidAmount;
       }
     }
 
+    const eligible: any[] = [];
+    const inHold: any[] = [];
+    const heldBack: any[] = [];
+
+    for (const job of unpaidJobsInRange) {
+      const bidAmount = Number(job.winningBid?.bidAmount || 0);
+
+      const jobData = {
+        id: job.id,
+        bookingReference: job.booking.bookingReference,
+        pickupAddress: job.booking.pickupAddress,
+        dropoffAddress: job.booking.dropoffAddress,
+        completedAt: job.completedAt,
+        bidAmount
+      };
+
+      if (heldBackIds.has(job.id)) {
+        heldBack.push({ ...jobData, status: 'HELD_BACK' });
+      } else if (job.completedAt && job.completedAt <= eligibilityCutoff) {
+        eligible.push({ ...jobData, status: 'ELIGIBLE' });
+      } else if (job.completedAt) {
+        const eligibleDate = new Date(job.completedAt);
+        eligibleDate.setDate(eligibleDate.getDate() + settings.initialDelayDays);
+        const daysRemaining = Math.ceil(
+          (eligibleDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+        );
+
+        inHold.push({
+          ...jobData,
+          status: 'IN_HOLD',
+          daysRemaining,
+          eligibleDate
+        });
+      }
+    }
+
+    const totalEarnings = eligibleTotal + inHoldTotal + heldBackTotal;
+    const completedPayouts = Number(paidOutTotal._sum.platformMargin || 0);
+    const processingPayouts = Number(processingTotal._sum.platformMargin || 0);
+
+    const dateFrom = options?.from || new Date(now.getTime() - ((options?.days || 14) * 24 * 60 * 60 * 1000));
+    const dateTo = options?.to || now;
+
     return {
-      totalEarnings,
-      pendingPayouts,
-      completedPayouts,
-      processingPayouts,
+      summary: {
+        totalEarnings,
+        completedPayouts,
+        processingPayouts,
+        pendingBreakdown: {
+          eligible: eligibleTotal,
+          inHold: inHoldTotal,
+          heldBack: heldBackTotal,
+          total: totalEarnings
+        }
+      },
+
+      forecast: {
+        eligible: {
+          amount: eligible.reduce((sum, j) => sum + j.bidAmount, 0),
+          count: eligible.length,
+          totalCount: unpaidJobsSummary.filter(j =>
+            !heldBackIds.has(j.id) &&
+            j.completedAt &&
+            j.completedAt <= eligibilityCutoff
+          ).length,
+          jobs: eligible
+        },
+        inHold: {
+          amount: inHold.reduce((sum, j) => sum + j.bidAmount, 0),
+          count: inHold.length,
+          totalCount: unpaidJobsSummary.filter(j =>
+            !heldBackIds.has(j.id) &&
+            j.completedAt &&
+            j.completedAt > eligibilityCutoff
+          ).length,
+          jobs: inHold
+        },
+        heldBack: {
+          amount: heldBack.reduce((sum, j) => sum + j.bidAmount, 0),
+          count: heldBack.length,
+          totalCount: jobsHeldBackCount,
+          jobs: heldBack
+        }
+      },
+
+      payoutSettings: {
+        holdPeriodDays: settings.initialDelayDays,
+        jobsHeldBack: settings.jobsHeldBack,
+        payoutFrequency: settings.frequency
+      },
+
+      bankDetails: {
+        isComplete: !!(bankDetails?.bankAccountNumber && bankDetails?.bankSortCode),
+        lastFourDigits: bankDetails?.bankAccountNumber?.slice(-4) || null
+      },
+
+      meta: {
+        dateRange: {
+          from: dateFrom,
+          to: dateTo,
+          days: options?.days || 14,
+          isFiltered: !options?.all
+        },
+        jobsShownInForecast: unpaidJobsInRange.length,
+        totalUnpaidJobs: unpaidJobsSummary.length
+      }
     };
   }
 }
