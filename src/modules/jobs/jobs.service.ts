@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
-import { Job, JobStatus, JourneyType, BidStatus } from '@prisma/client';
+import { Job, JobStatus, JourneyType, BidStatus, PayoutStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { SystemSettingsService } from '../system-settings/system-settings.service.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
@@ -400,6 +400,7 @@ export class JobsService {
         data: {
           status: JobStatus.COMPLETED,
           completedAt: new Date(),
+          payoutStatus: PayoutStatus.PENDING,
         },
         include: { booking: true },
       }),
@@ -446,6 +447,7 @@ export class JobsService {
 
     if (status === JobStatus.COMPLETED) {
       updateData.completedAt = new Date();
+      updateData.payoutStatus = PayoutStatus.PENDING;
     }
 
     return this.prisma.job.update({
