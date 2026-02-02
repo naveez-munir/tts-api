@@ -178,6 +178,12 @@ export class JobsController {
         },
         winningBid: true,
         driverDetails: true,
+        assignedDriver: true,
+        assignedVehicle: {
+          include: {
+            photos: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -234,6 +240,8 @@ export class JobsController {
     @CurrentUser() user: any,
     @Param('id') id: string,
     @Body() driverDetails: {
+      driverId?: string;
+      vehicleId?: string;
       driverName: string;
       driverPhone: string;
       vehicleRegistration: string;
@@ -271,6 +279,35 @@ export class JobsController {
       throw new NotFoundException('Job not assigned to this operator');
     }
 
+    // Validate driver and vehicle ownership if provided
+    if (driverDetails.driverId) {
+      const driver = await this.prisma.driver.findUnique({
+        where: { id: driverDetails.driverId },
+      });
+
+      if (!driver || driver.operatorId !== profile.id) {
+        throw new NotFoundException('Driver not found or does not belong to this operator');
+      }
+
+      if (!driver.isActive) {
+        throw new NotFoundException('Driver is not active');
+      }
+    }
+
+    if (driverDetails.vehicleId) {
+      const vehicle = await this.prisma.vehicle.findUnique({
+        where: { id: driverDetails.vehicleId },
+      });
+
+      if (!vehicle || vehicle.operatorId !== profile.id) {
+        throw new NotFoundException('Vehicle not found or does not belong to this operator');
+      }
+
+      if (!vehicle.isActive) {
+        throw new NotFoundException('Vehicle is not active');
+      }
+    }
+
     // Create or update driver details
     await this.prisma.driverDetails.upsert({
       where: { jobId: id },
@@ -297,10 +334,14 @@ export class JobsController {
       },
     });
 
-    // Update job status to IN_PROGRESS
+    // Update job status to IN_PROGRESS and assign driver/vehicle
     const updatedJob = await this.prisma.job.update({
       where: { id },
-      data: { status: JobStatus.IN_PROGRESS },
+      data: {
+        status: JobStatus.IN_PROGRESS,
+        assignedDriverId: driverDetails.driverId || null,
+        assignedVehicleId: driverDetails.vehicleId || null,
+      },
       include: {
         booking: {
           include: {
@@ -308,6 +349,12 @@ export class JobsController {
           },
         },
         driverDetails: true,
+        assignedDriver: true,
+        assignedVehicle: {
+          include: {
+            photos: true,
+          },
+        },
       },
     });
 

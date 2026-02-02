@@ -84,6 +84,7 @@ model Vehicle {
   updatedAt             DateTime        @updatedAt
   operator              OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   photos                VehiclePhoto[]
+  assignedJobs          Job[]           @relation("AssignedVehicle")
 
   @@map("vehicles")
 }
@@ -139,6 +140,7 @@ model Driver {
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
   operator                OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  assignedJobs            Job[]           @relation("AssignedDriver")
 
   @@map("drivers")
 }
@@ -281,6 +283,8 @@ model Job {
   status                     JobStatus        @default(OPEN_FOR_BIDDING)
   biddingWindowClosesAt      DateTime
   assignedOperatorId         String?
+  assignedDriverId           String?
+  assignedVehicleId          String?
   createdAt                  DateTime         @default(now())
   updatedAt                  DateTime         @updatedAt
   acceptanceAttemptCount     Int              @default(0)
@@ -299,11 +303,15 @@ model Job {
   bids                       Bid[]            @relation("JobBids")
   driverDetails              DriverDetails?
   assignedOperator           OperatorProfile? @relation("AssignedOperator", fields: [assignedOperatorId], references: [id])
+  assignedDriver             Driver?          @relation("AssignedDriver", fields: [assignedDriverId], references: [id])
+  assignedVehicle            Vehicle?         @relation("AssignedVehicle", fields: [assignedVehicleId], references: [id])
   booking                    Booking          @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   winningBid                 Bid?             @relation("WinningBid", fields: [winningBidId], references: [id])
 
   @@index([status])
   @@index([assignedOperatorId])
+  @@index([assignedDriverId])
+  @@index([assignedVehicleId])
   @@index([biddingWindowClosesAt])
   @@index([acceptanceWindowClosesAt])
   @@index([payoutStatus])

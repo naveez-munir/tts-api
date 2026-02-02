@@ -720,6 +720,137 @@ export class AdminService {
   }
 
   /**
+   * Get single operator by ID with full details (vehicles, drivers)
+   */
+  async getOperatorById(operatorId: string) {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: {
+        user: { select: { email: true, phoneNumber: true } },
+        serviceAreas: { select: { postcode: true } },
+        vehicles: {
+          orderBy: { createdAt: 'desc' },
+          include: { photos: true },
+        },
+        drivers: {
+          orderBy: { createdAt: 'desc' },
+        },
+      },
+    });
+
+    if (!operator) {
+      throw new NotFoundException('Operator not found');
+    }
+
+    // Generate presigned URLs for vehicle documents and photos
+    const vehiclesWithUrls = await Promise.all(
+      operator.vehicles.map(async (vehicle) => {
+        const vehicleData: Record<string, unknown> = { ...vehicle };
+
+        // Document fields that need presigned URLs
+        const documentFields = ['logbookUrl', 'motCertificateUrl', 'insuranceDocumentUrl', 'hirePermissionLetterUrl'];
+
+        for (const field of documentFields) {
+          const value = vehicle[field as keyof typeof vehicle];
+          if (value && typeof value === 'string') {
+            try {
+              if (value.startsWith('http')) {
+                vehicleData[field] = value;
+              } else {
+                const s3Key = this.extractS3KeyFromUrl(value);
+                if (s3Key) {
+                  const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
+                  vehicleData[field] = downloadUrl;
+                }
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to generate URL for vehicle ${field}: ${error}`);
+            }
+          }
+        }
+
+        // Generate presigned URLs for vehicle photos
+        const photosWithUrls = await Promise.all(
+          vehicle.photos.map(async (photo) => {
+            try {
+              if (photo.photoUrl.startsWith('http')) {
+                return photo;
+              }
+              const s3Key = this.extractS3KeyFromUrl(photo.photoUrl);
+              if (s3Key) {
+                const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
+                return { ...photo, photoUrl: downloadUrl };
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to generate URL for photo ${photo.id}: ${error}`);
+            }
+            return photo;
+          })
+        );
+
+        return { ...vehicleData, photos: photosWithUrls };
+      })
+    );
+
+    // Generate presigned URLs for driver documents
+    const driversWithUrls = await Promise.all(
+      operator.drivers.map(async (driver) => {
+        const driverData: Record<string, unknown> = { ...driver };
+
+        // Document fields that need presigned URLs
+        const documentFields = [
+          'profileImageUrl',
+          'passportUrl',
+          'drivingLicenseFrontUrl',
+          'drivingLicenseBackUrl',
+          'nationalInsuranceDocUrl',
+          'taxiCertificationUrl',
+          'taxiBadgePhotoUrl',
+        ];
+
+        for (const field of documentFields) {
+          const value = driver[field as keyof typeof driver];
+          if (value && typeof value === 'string') {
+            try {
+              if (value.startsWith('http')) {
+                driverData[field] = value;
+              } else {
+                const s3Key = this.extractS3KeyFromUrl(value);
+                if (s3Key) {
+                  const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
+                  driverData[field] = downloadUrl;
+                }
+              }
+            } catch (error) {
+              this.logger.warn(`Failed to generate URL for driver ${field}: ${error}`);
+            }
+          }
+        }
+
+        return driverData;
+      })
+    );
+
+    return {
+      id: operator.id,
+      companyName: operator.companyName,
+      registrationNumber: operator.registrationNumber,
+      vatNumber: operator.vatNumber,
+      approvalStatus: operator.approvalStatus,
+      reputationScore: Number(operator.reputationScore),
+      completedJobsCount: operator.completedJobs,
+      totalJobs: operator.totalJobs,
+      createdAt: operator.createdAt.toISOString(),
+      serviceAreas: operator.serviceAreas.map((sa) => sa.postcode),
+      vehiclesCount: operator.vehicles.length,
+      hasBankDetails: !!(operator.bankAccountName && operator.bankAccountNumber && operator.bankSortCode),
+      user: operator.user,
+      vehicles: vehiclesWithUrls,
+      drivers: driversWithUrls,
+    };
+  }
+
+  /**
    * Extract S3 key from a stored file URL
    */
   private extractS3KeyFromUrl(fileUrl: string): string | null {
@@ -1605,6 +1736,12 @@ export class AdminService {
         assignedOperator: { select: { id: true, companyName: true, reputationScore: true } },
         winningBid: true,
         driverDetails: true,
+        assignedDriver: true,
+        assignedVehicle: {
+          include: {
+            photos: true,
+          },
+        },
       },
     });
 
@@ -1629,6 +1766,8 @@ export class AdminService {
         submittedAt: b.submittedAt.toISOString(),
       })),
       assignedOperator: job.assignedOperator,
+      assignedDriver: job.assignedDriver,
+      assignedVehicle: job.assignedVehicle,
       winningBid: job.winningBid
         ? { id: job.winningBid.id, amount: Number(job.winningBid.bidAmount) }
         : null,

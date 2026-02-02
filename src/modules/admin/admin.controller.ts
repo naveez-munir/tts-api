@@ -65,6 +65,12 @@ export class AdminController {
     return { success: true, data: { operators: result.operators }, meta: result.meta };
   }
 
+  @Get('operators/:id')
+  async getOperatorById(@Param('id') id: string) {
+    const data = await this.adminService.getOperatorById(id);
+    return { success: true, data };
+  }
+
   @Patch('operators/:id/approval')
   async updateOperatorApproval(
     @Param('id') id: string,
