@@ -581,6 +581,29 @@ export class OperatorsService {
     }));
   }
 
+  /**
+   * SINGLE SOURCE OF TRUTH: Update operator fleet size
+   * This method should be called whenever vehicles are added, removed, or their active status changes
+   * Fleet size = count of ACTIVE vehicles
+   */
+  private async updateOperatorFleetSize(operatorId: string, tx?: any) {
+    const prisma = tx || this.prisma;
+
+    const activeVehicleCount = await prisma.vehicle.count({
+      where: {
+        operatorId,
+        isActive: true,
+      },
+    });
+
+    await prisma.operatorProfile.update({
+      where: { id: operatorId },
+      data: { fleetSize: activeVehicleCount },
+    });
+
+    return activeVehicleCount;
+  }
+
   private async generateDriverDocumentUrls(driver: Driver & { vehicle?: any }) {
     const result = { ...driver } as Record<string, unknown>;
     const documentFields = [
@@ -752,47 +775,43 @@ export class OperatorsService {
       }
     }
 
-    const vehicle = await this.prisma.vehicle.create({
-      data: {
-        operatorId: profile.id,
-        vehicleType: dto.vehicleType,
-        registrationPlate: dto.registrationPlate,
-        make: dto.make,
-        model: dto.model,
-        year: dto.year,
-        color: dto.color,
-        logbookUrl: dto.logbookUrl,
-        motCertificateUrl: dto.motCertificateUrl,
-        motExpiryDate: dto.motExpiryDate ? new Date(dto.motExpiryDate) : null,
-        insuranceDocumentUrl: dto.insuranceDocumentUrl,
-        insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : null,
-        hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
-      },
-      include: { driver: true }
-    });
-
-    if (dto.driverId) {
-      await this.prisma.driver.update({
-        where: { id: dto.driverId },
-        data: { vehicleId: vehicle.id }
+    return this.prisma.$transaction(async (tx) => {
+      const vehicle = await tx.vehicle.create({
+        data: {
+          operatorId: profile.id,
+          vehicleType: dto.vehicleType,
+          registrationPlate: dto.registrationPlate,
+          make: dto.make,
+          model: dto.model,
+          year: dto.year,
+          color: dto.color,
+          logbookUrl: dto.logbookUrl,
+          motCertificateUrl: dto.motCertificateUrl,
+          motExpiryDate: dto.motExpiryDate ? new Date(dto.motExpiryDate) : null,
+          insuranceDocumentUrl: dto.insuranceDocumentUrl,
+          insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : null,
+          hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
+        },
+        include: { driver: true }
       });
-    }
 
-    const vehicleCount = await this.prisma.vehicle.count({
-      where: { operatorId: profile.id },
+      if (dto.driverId) {
+        await tx.driver.update({
+          where: { id: dto.driverId },
+          data: { vehicleId: vehicle.id }
+        });
+      }
+
+      // Update fleet size using centralized method
+      await this.updateOperatorFleetSize(profile.id, tx);
+
+      return dto.driverId
+        ? tx.vehicle.findUnique({
+            where: { id: vehicle.id },
+            include: { driver: true }
+          })
+        : vehicle;
     });
-
-    await this.prisma.operatorProfile.update({
-      where: { id: profile.id },
-      data: { fleetSize: vehicleCount },
-    });
-
-    return dto.driverId
-      ? this.prisma.vehicle.findUnique({
-          where: { id: vehicle.id },
-          include: { driver: true }
-        })
-      : vehicle;
   }
 
   async updateVehicle(userId: string, vehicleId: string, dto: UpdateVehicleDto) {
@@ -816,23 +835,35 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to update this vehicle');
     }
 
-    return this.prisma.vehicle.update({
-      where: { id: vehicleId },
-      data: {
-        vehicleType: dto.vehicleType,
-        registrationPlate: dto.registrationPlate,
-        make: dto.make,
-        model: dto.model,
-        year: dto.year,
-        color: dto.color,
-        logbookUrl: dto.logbookUrl,
-        motCertificateUrl: dto.motCertificateUrl,
-        motExpiryDate: dto.motExpiryDate ? new Date(dto.motExpiryDate) : undefined,
-        insuranceDocumentUrl: dto.insuranceDocumentUrl,
-        insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : undefined,
-        hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
-        isActive: dto.isActive,
-      },
+    // Check if isActive status is changing
+    const isActiveChanging = dto.isActive !== undefined && dto.isActive !== vehicle.isActive;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedVehicle = await tx.vehicle.update({
+        where: { id: vehicleId },
+        data: {
+          vehicleType: dto.vehicleType,
+          registrationPlate: dto.registrationPlate,
+          make: dto.make,
+          model: dto.model,
+          year: dto.year,
+          color: dto.color,
+          logbookUrl: dto.logbookUrl,
+          motCertificateUrl: dto.motCertificateUrl,
+          motExpiryDate: dto.motExpiryDate ? new Date(dto.motExpiryDate) : undefined,
+          insuranceDocumentUrl: dto.insuranceDocumentUrl,
+          insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : undefined,
+          hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
+          isActive: dto.isActive,
+        },
+      });
+
+      // Update fleet size if active status changed
+      if (isActiveChanging) {
+        await this.updateOperatorFleetSize(profile.id, tx);
+      }
+
+      return updatedVehicle;
     });
   }
 
@@ -860,20 +891,16 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to delete this vehicle');
     }
 
-    await this.prisma.vehicle.delete({
-      where: { id: vehicleId },
-    });
+    return this.prisma.$transaction(async (tx) => {
+      await tx.vehicle.delete({
+        where: { id: vehicleId },
+      });
 
-    const vehicleCount = await this.prisma.vehicle.count({
-      where: { operatorId: profile.id },
-    });
+      // Update fleet size using centralized method
+      await this.updateOperatorFleetSize(profile.id, tx);
 
-    await this.prisma.operatorProfile.update({
-      where: { id: profile.id },
-      data: { fleetSize: vehicleCount },
+      return { deleted: true, vehicleId };
     });
-
-    return { deleted: true, vehicleId };
   }
 
   async getDrivers(userId: string) {
@@ -936,6 +963,8 @@ export class OperatorsService {
       throw new NotFoundException('Operator profile not found');
     }
 
+    // Driver creation doesn't affect fleet size (only vehicles do)
+    // Fleet size is updated when driver is assigned to a vehicle
     return this.prisma.driver.create({
       data: {
         operatorId: profile.id,
@@ -1033,16 +1062,8 @@ export class OperatorsService {
           data: { isActive: !isBeingDeactivated },
         });
 
-        // Adjust fleetSize: decrement on deactivate, increment on reactivate (never below 0)
-        const currentFleetSize = profile.fleetSize ?? 0;
-        const newFleetSize = isBeingDeactivated
-          ? Math.max(0, currentFleetSize - 1)
-          : currentFleetSize + 1;
-
-        await tx.operatorProfile.update({
-          where: { id: profile.id },
-          data: { fleetSize: newFleetSize },
-        });
+        // Update fleet size using centralized method
+        await this.updateOperatorFleetSize(profile.id, tx);
       }
 
       return updatedDriver;
@@ -1082,16 +1103,9 @@ export class OperatorsService {
         where: { id: driverId },
       });
 
-      // Update fleetSize if a vehicle was deleted
+      // Update fleet size using centralized method (if a vehicle was deleted)
       if (driver.vehicleId) {
-        const vehicleCount = await tx.vehicle.count({
-          where: { operatorId: profile.id },
-        });
-
-        await tx.operatorProfile.update({
-          where: { id: profile.id },
-          data: { fleetSize: vehicleCount },
-        });
+        await this.updateOperatorFleetSize(profile.id, tx);
       }
     });
 
