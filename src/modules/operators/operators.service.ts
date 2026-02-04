@@ -581,7 +581,7 @@ export class OperatorsService {
     }));
   }
 
-  private async generateDriverDocumentUrls(driver: Driver) {
+  private async generateDriverDocumentUrls(driver: Driver & { vehicle?: any }) {
     const result = { ...driver } as Record<string, unknown>;
     const documentFields = [
       'profileImageUrl',
@@ -603,6 +603,28 @@ export class OperatorsService {
           result[field] = downloadUrl;
         }
       }
+    }
+
+    // Handle vehicle if present
+    if (driver.vehicle) {
+      const vehicleWithUrls = await this.generateVehicleDocumentUrls(driver.vehicle);
+      
+      // Handle vehicle photos
+      if (driver.vehicle.photos && Array.isArray(driver.vehicle.photos)) {
+        const photosWithUrls = await Promise.all(
+          driver.vehicle.photos.map(async (photo: any) => {
+            if (photo.photoUrl.startsWith('http')) {
+              return photo;
+            } else {
+              const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+              return { ...photo, photoUrl: downloadUrl };
+            }
+          })
+        );
+        vehicleWithUrls.photos = photosWithUrls;
+      }
+      
+      result.vehicle = vehicleWithUrls;
     }
 
     return result;
@@ -710,6 +732,26 @@ export class OperatorsService {
       throw new NotFoundException('Operator profile not found');
     }
 
+    if (dto.driverId) {
+      const driver = await this.prisma.driver.findFirst({
+        where: {
+          id: dto.driverId,
+          operatorId: profile.id
+        },
+        include: { vehicle: true }
+      });
+
+      if (!driver) {
+        throw new BadRequestException('Driver not found or does not belong to your fleet');
+      }
+
+      if (driver.vehicleId) {
+        throw new BadRequestException(
+          `Driver ${driver.firstName} ${driver.lastName} already has vehicle ${driver.vehicle?.registrationPlate} assigned`
+        );
+      }
+    }
+
     const vehicle = await this.prisma.vehicle.create({
       data: {
         operatorId: profile.id,
@@ -726,7 +768,15 @@ export class OperatorsService {
         insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : null,
         hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
       },
+      include: { driver: true }
     });
+
+    if (dto.driverId) {
+      await this.prisma.driver.update({
+        where: { id: dto.driverId },
+        data: { vehicleId: vehicle.id }
+      });
+    }
 
     const vehicleCount = await this.prisma.vehicle.count({
       where: { operatorId: profile.id },
@@ -737,7 +787,12 @@ export class OperatorsService {
       data: { fleetSize: vehicleCount },
     });
 
-    return vehicle;
+    return dto.driverId
+      ? this.prisma.vehicle.findUnique({
+          where: { id: vehicle.id },
+          include: { driver: true }
+        })
+      : vehicle;
   }
 
   async updateVehicle(userId: string, vehicleId: string, dto: UpdateVehicleDto) {
@@ -832,6 +887,11 @@ export class OperatorsService {
 
     const drivers = await this.prisma.driver.findMany({
       where: { operatorId: profile.id },
+      include: { 
+        vehicle: {
+          include: { photos: true }
+        }
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -849,6 +909,11 @@ export class OperatorsService {
 
     const driver = await this.prisma.driver.findUnique({
       where: { id: driverId },
+      include: { 
+        vehicle: {
+          include: { photos: true }
+        }
+      },
     });
 
     if (!driver) {
@@ -921,33 +986,66 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to update this driver');
     }
 
-    return this.prisma.driver.update({
-      where: { id: driverId },
-      data: {
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        email: dto.email,
-        phoneNumber: dto.phoneNumber,
-        profileImageUrl: dto.profileImageUrl,
-        dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
-        passportUrl: dto.passportUrl,
-        passportExpiry: dto.passportExpiry ? new Date(dto.passportExpiry) : undefined,
-        drivingLicenseNumber: dto.drivingLicenseNumber,
-        drivingLicenseFrontUrl: dto.drivingLicenseFrontUrl,
-        drivingLicenseBackUrl: dto.drivingLicenseBackUrl,
-        drivingLicenseExpiry: dto.drivingLicenseExpiry ? new Date(dto.drivingLicenseExpiry) : undefined,
-        nationalInsuranceNo: dto.nationalInsuranceNo,
-        nationalInsuranceDocUrl: dto.nationalInsuranceDocUrl,
-        taxiCertificationUrl: dto.taxiCertificationUrl,
-        taxiCertificationExpiry: dto.taxiCertificationExpiry ? new Date(dto.taxiCertificationExpiry) : undefined,
-        taxiBadgePhotoUrl: dto.taxiBadgePhotoUrl,
-        taxiBadgeExpiry: dto.taxiBadgeExpiry ? new Date(dto.taxiBadgeExpiry) : undefined,
-        phvLicenseNumber: dto.phvLicenseNumber,
-        phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : undefined,
-        issuingCouncil: dto.issuingCouncil,
-        badgeNumber: dto.badgeNumber,
-        isActive: dto.isActive,
-      },
+    // Detect active status change and whether driver has a linked vehicle
+    const isBeingDeactivated = dto.isActive === false && driver.isActive === true;
+    const isBeingReactivated = dto.isActive === true && driver.isActive === false;
+
+    return this.prisma.$transaction(async (tx) => {
+      const updatedDriver = await tx.driver.update({
+        where: { id: driverId },
+        data: {
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          email: dto.email,
+          phoneNumber: dto.phoneNumber,
+          profileImageUrl: dto.profileImageUrl,
+          dateOfBirth: dto.dateOfBirth ? new Date(dto.dateOfBirth) : undefined,
+          passportUrl: dto.passportUrl,
+          passportExpiry: dto.passportExpiry ? new Date(dto.passportExpiry) : undefined,
+          drivingLicenseNumber: dto.drivingLicenseNumber,
+          drivingLicenseFrontUrl: dto.drivingLicenseFrontUrl,
+          drivingLicenseBackUrl: dto.drivingLicenseBackUrl,
+          drivingLicenseExpiry: dto.drivingLicenseExpiry ? new Date(dto.drivingLicenseExpiry) : undefined,
+          nationalInsuranceNo: dto.nationalInsuranceNo,
+          nationalInsuranceDocUrl: dto.nationalInsuranceDocUrl,
+          taxiCertificationUrl: dto.taxiCertificationUrl,
+          taxiCertificationExpiry: dto.taxiCertificationExpiry ? new Date(dto.taxiCertificationExpiry) : undefined,
+          taxiBadgePhotoUrl: dto.taxiBadgePhotoUrl,
+          taxiBadgeExpiry: dto.taxiBadgeExpiry ? new Date(dto.taxiBadgeExpiry) : undefined,
+          phvLicenseNumber: dto.phvLicenseNumber,
+          phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : undefined,
+          issuingCouncil: dto.issuingCouncil,
+          badgeNumber: dto.badgeNumber,
+          isActive: dto.isActive,
+          vehicle: dto.vehicleId !== undefined
+            ? dto.vehicleId
+              ? { connect: { id: dto.vehicleId } }
+              : { disconnect: true }
+            : undefined,
+        },
+      });
+
+      // If driver has a linked vehicle and active status changed, sync vehicle + fleetSize
+      if (driver.vehicleId && (isBeingDeactivated || isBeingReactivated)) {
+        // Deactivate/reactivate the linked vehicle along with the driver
+        await tx.vehicle.update({
+          where: { id: driver.vehicleId },
+          data: { isActive: !isBeingDeactivated },
+        });
+
+        // Adjust fleetSize: decrement on deactivate, increment on reactivate (never below 0)
+        const currentFleetSize = profile.fleetSize ?? 0;
+        const newFleetSize = isBeingDeactivated
+          ? Math.max(0, currentFleetSize - 1)
+          : currentFleetSize + 1;
+
+        await tx.operatorProfile.update({
+          where: { id: profile.id },
+          data: { fleetSize: newFleetSize },
+        });
+      }
+
+      return updatedDriver;
     });
   }
 
@@ -972,8 +1070,29 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to delete this driver');
     }
 
-    await this.prisma.driver.delete({
-      where: { id: driverId },
+    await this.prisma.$transaction(async (tx) => {
+      // Delete the linked vehicle first (if any), which also cascades its photos
+      if (driver.vehicleId) {
+        await tx.vehicle.delete({
+          where: { id: driver.vehicleId },
+        });
+      }
+
+      await tx.driver.delete({
+        where: { id: driverId },
+      });
+
+      // Update fleetSize if a vehicle was deleted
+      if (driver.vehicleId) {
+        const vehicleCount = await tx.vehicle.count({
+          where: { operatorId: profile.id },
+        });
+
+        await tx.operatorProfile.update({
+          where: { id: profile.id },
+          data: { fleetSize: vehicleCount },
+        });
+      }
     });
 
     return { deleted: true, driverId };

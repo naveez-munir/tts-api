@@ -8,6 +8,7 @@ import {
   HttpStatus,
   Body,
   NotFoundException,
+  BadRequestException,
   Logger,
 } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
@@ -178,7 +179,11 @@ export class JobsController {
         },
         winningBid: true,
         driverDetails: true,
-        assignedDriver: true,
+        assignedDriver: {
+          include: {
+            vehicle: true,
+          },
+        },
         assignedVehicle: {
           include: {
             photos: true,
@@ -230,27 +235,12 @@ export class JobsController {
     };
   }
 
-  /**
-   * POST /jobs/:id/driver-details
-   * Submit driver details for an assigned job
-   */
   @Post(':id/driver-details')
   @HttpCode(HttpStatus.OK)
   async submitDriverDetails(
     @CurrentUser() user: any,
     @Param('id') id: string,
-    @Body() driverDetails: {
-      driverId?: string;
-      vehicleId?: string;
-      driverName: string;
-      driverPhone: string;
-      vehicleRegistration: string;
-      vehicleMake?: string;
-      vehicleModel?: string;
-      vehicleColor?: string;
-      taxiLicenceNumber?: string;
-      issuingCouncil?: string;
-    },
+    @Body() body: { driverId: string },
   ) {
     const profile = await this.prisma.operatorProfile.findUnique({
       where: { userId: user.id },
@@ -279,68 +269,60 @@ export class JobsController {
       throw new NotFoundException('Job not assigned to this operator');
     }
 
-    // Validate driver and vehicle ownership if provided
-    if (driverDetails.driverId) {
-      const driver = await this.prisma.driver.findUnique({
-        where: { id: driverDetails.driverId },
-      });
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: body.driverId },
+      include: { vehicle: true },
+    });
 
-      if (!driver || driver.operatorId !== profile.id) {
-        throw new NotFoundException('Driver not found or does not belong to this operator');
-      }
-
-      if (!driver.isActive) {
-        throw new NotFoundException('Driver is not active');
-      }
+    if (!driver || driver.operatorId !== profile.id) {
+      throw new NotFoundException('Driver not found or does not belong to this operator');
     }
 
-    if (driverDetails.vehicleId) {
-      const vehicle = await this.prisma.vehicle.findUnique({
-        where: { id: driverDetails.vehicleId },
-      });
-
-      if (!vehicle || vehicle.operatorId !== profile.id) {
-        throw new NotFoundException('Vehicle not found or does not belong to this operator');
-      }
-
-      if (!vehicle.isActive) {
-        throw new NotFoundException('Vehicle is not active');
-      }
+    if (!driver.isActive) {
+      throw new BadRequestException('Driver is not active');
     }
 
-    // Create or update driver details
+    if (!driver.vehicle) {
+      throw new BadRequestException('No vehicle linked to this driver');
+    }
+
+    if (!driver.vehicle.isActive) {
+      throw new BadRequestException('Vehicle linked to this driver is not active');
+    }
+
+    const driverName = `${driver.firstName} ${driver.lastName}`;
+
     await this.prisma.driverDetails.upsert({
       where: { jobId: id },
       create: {
         jobId: id,
-        driverName: driverDetails.driverName,
-        driverPhone: driverDetails.driverPhone,
-        vehicleRegistration: driverDetails.vehicleRegistration,
-        vehicleMake: driverDetails.vehicleMake,
-        vehicleModel: driverDetails.vehicleModel,
-        vehicleColor: driverDetails.vehicleColor,
-        taxiLicenceNumber: driverDetails.taxiLicenceNumber,
-        issuingCouncil: driverDetails.issuingCouncil,
+        driverName,
+        driverPhone: driver.phoneNumber,
+        vehicleRegistration: driver.vehicle.registrationPlate,
+        vehicleMake: driver.vehicle.make,
+        vehicleModel: driver.vehicle.model,
+        vehicleColor: driver.vehicle.color,
+        taxiLicenceNumber: driver.phvLicenseNumber,
+        issuingCouncil: driver.issuingCouncil,
       },
       update: {
-        driverName: driverDetails.driverName,
-        driverPhone: driverDetails.driverPhone,
-        vehicleRegistration: driverDetails.vehicleRegistration,
-        vehicleMake: driverDetails.vehicleMake,
-        vehicleModel: driverDetails.vehicleModel,
-        vehicleColor: driverDetails.vehicleColor,
-        taxiLicenceNumber: driverDetails.taxiLicenceNumber,
-        issuingCouncil: driverDetails.issuingCouncil,
+        driverName,
+        driverPhone: driver.phoneNumber,
+        vehicleRegistration: driver.vehicle.registrationPlate,
+        vehicleMake: driver.vehicle.make,
+        vehicleModel: driver.vehicle.model,
+        vehicleColor: driver.vehicle.color,
+        taxiLicenceNumber: driver.phvLicenseNumber,
+        issuingCouncil: driver.issuingCouncil,
       },
     });
 
-    // Update job status to IN_PROGRESS and assign driver/vehicle
     const updatedJob = await this.prisma.job.update({
       where: { id },
       data: {
         status: JobStatus.IN_PROGRESS,
-        assignedDriverId: driverDetails.driverId || null,
-        assignedVehicleId: driverDetails.vehicleId || null,
+        assignedDriverId: driver.id,
+        assignedVehicleId: driver.vehicle.id,
       },
       include: {
         booking: {
@@ -358,14 +340,13 @@ export class JobsController {
       },
     });
 
-    // Send driver assignment notification to customer
     try {
       await this.notificationsService.sendDriverAssignment({
         customerId: job.booking.customerId,
         bookingReference: job.booking.bookingReference,
-        driverName: driverDetails.driverName,
-        driverPhone: driverDetails.driverPhone,
-        vehicleRegistration: driverDetails.vehicleRegistration,
+        driverName,
+        driverPhone: driver.phoneNumber,
+        vehicleRegistration: driver.vehicle.registrationPlate,
         pickupDatetime: job.booking.pickupDatetime,
         pickupAddress: job.booking.pickupAddress,
         journeyType: job.booking.journeyType as 'ONE_WAY' | 'OUTBOUND' | 'RETURN',
@@ -373,7 +354,6 @@ export class JobsController {
       });
       this.logger.log(`Driver assignment notification sent for booking ${job.booking.bookingReference}`);
     } catch (error) {
-      // Log error but don't fail the request - driver details were saved successfully
       this.logger.error(`Failed to send driver assignment notification for booking ${job.booking.bookingReference}:`, error);
     }
 

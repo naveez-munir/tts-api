@@ -84,6 +84,7 @@ model Vehicle {
   updatedAt             DateTime        @updatedAt
   operator              OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
   photos                VehiclePhoto[]
+  driver                Driver?
   assignedJobs          Job[]           @relation("AssignedVehicle")
 
   @@map("vehicles")
@@ -136,10 +137,12 @@ model Driver {
   phvLicenseExpiry        DateTime?
   issuingCouncil          String?
   badgeNumber             String?
+  vehicleId               String?         @unique
   isActive                Boolean         @default(true)
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
   operator                OperatorProfile @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+  vehicle                 Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
   assignedJobs            Job[]           @relation("AssignedDriver")
 
   @@map("drivers")

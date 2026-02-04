@@ -14,6 +14,7 @@ export const CreateVehicleSchema = z.object({
   insuranceDocumentUrl: z.string().optional(),
   insuranceExpiryDate: z.string().datetime().optional(),
   hirePermissionLetterUrl: z.string().optional(),
+  driverId: z.string().optional(),
 });
 
 export const UpdateVehicleSchema = z.object({

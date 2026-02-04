@@ -49,6 +49,7 @@ export const UpdateDriverSchema = z.object({
   issuingCouncil: z.string().optional(),
   badgeNumber: z.string().optional(),
   isActive: z.boolean().optional(),
+  vehicleId: z.string().nullable().optional(),
 });
 
 export type CreateDriverDto = z.infer<typeof CreateDriverSchema>;
