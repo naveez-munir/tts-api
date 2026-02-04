@@ -9,7 +9,7 @@ export class UsersService {
 
   async findByEmail(email: string): Promise<User | null> {
     return this.prisma.user.findUnique({
-      where: { email },
+      where: { email, isActive: true },
     });
   }
 
