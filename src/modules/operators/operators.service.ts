@@ -125,7 +125,7 @@ export class OperatorsService {
       throw new NotFoundException(`Operator profile not found for user ${userId}`);
     }
 
-    const [totalBids, wonBids, availableJobs, unpaidJobs, completedPayouts, processingPayouts] = await Promise.all([
+    const [totalBids, wonBids, availableJobs, totalJobs, completedJobs, unpaidJobs, completedPayouts, processingPayouts] = await Promise.all([
       this.prisma.bid.count({
         where: { operatorId: profile.id },
       }),
@@ -145,6 +145,19 @@ export class OperatorsService {
               startsWith: profile.serviceAreas[0]?.postcode.substring(0, 3) || '',
             },
           },
+        },
+      }),
+
+      this.prisma.job.count({
+        where: {
+          assignedOperatorId: profile.id,
+        },
+      }),
+
+      this.prisma.job.count({
+        where: {
+          assignedOperatorId: profile.id,
+          status: JobStatus.COMPLETED,
         },
       }),
 
@@ -197,8 +210,8 @@ export class OperatorsService {
         wonBids,
         availableJobs: availableJobs.length,
         reputationScore: profile.reputationScore,
-        totalJobs: profile.totalJobs,
-        completedJobs: profile.completedJobs,
+        totalJobs,
+        completedJobs,
         approvalStatus: profile.approvalStatus,
         totalPendingEarnings,
         completedPayouts: completedPayoutsAmount,
@@ -581,11 +594,6 @@ export class OperatorsService {
     }));
   }
 
-  /**
-   * SINGLE SOURCE OF TRUTH: Update operator fleet size
-   * This method should be called whenever vehicles are added, removed, or their active status changes
-   * Fleet size = count of ACTIVE vehicles
-   */
   private async updateOperatorFleetSize(operatorId: string, tx?: any) {
     const prisma = tx || this.prisma;
 
@@ -963,8 +971,6 @@ export class OperatorsService {
       throw new NotFoundException('Operator profile not found');
     }
 
-    // Driver creation doesn't affect fleet size (only vehicles do)
-    // Fleet size is updated when driver is assigned to a vehicle
     return this.prisma.driver.create({
       data: {
         operatorId: profile.id,
