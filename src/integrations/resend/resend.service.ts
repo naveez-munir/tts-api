@@ -724,41 +724,56 @@ export class ResendService {
               TOTAL TRAVEL SOLUTION GROUP
             </h2>
             <p style="color: #64748b; font-size: 12px; margin: 0; font-style: italic;">
-              Your Trusted Journey Partner
+              Click.Book.Travel
             </p>
           </div>
 
-          <!-- Contact Info - Horizontal Layout -->
-          <div style="margin-bottom: 18px;">
-            <a href="mailto:customerservice@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-size: 13px; font-weight: 500; display: inline-block; margin: 0 10px 8px 10px;">
-              📧 customerservice@totaltravelsolutiongroup.com
-            </a>
-            <span style="color: #cbd5e1; display: inline-block;">•</span>
-            <a href="tel:+443301337044" style="color: #0D9488; text-decoration: none; font-size: 13px; font-weight: 600; display: inline-block; margin: 0 10px 8px 10px;">
-              📞 +44 33 0133 7044
-            </a>
-          </div>
-
           <!-- WhatsApp Badge -->
-          <div style="margin-bottom: 18px;">
-            <span style="background-color: #d1fae5; color: #065f46; font-size: 11px; font-weight: 600; padding: 6px 14px; border-radius: 20px; display: inline-block;">
-              💬 WhatsApp Support 24/7
-            </span>
+          <div style="margin-bottom: 18px; text-align: center;">
+            <a href="https://wa.me/443301337044"
+              target="_blank"
+              style="
+                background-color: #d1fae5;
+                color: #065f46;
+                font-size: 11px;
+                font-weight: 600;
+                padding: 6px 14px;
+                border-radius: 20px;
+                display: inline-block;
+                text-decoration: none;
+              ">
+              WhatsApp Support 24/7
+            </a>
           </div>
 
           <!-- Social Media Icons -->
-          <div style="margin: 18px 0;">
-            <a href="https://facebook.com/totaltravelsolutiongroup" style="display: inline-block; width: 34px; height: 34px; background-color: #0D9488; border-radius: 50%; text-align: center; line-height: 34px; margin: 0 5px; text-decoration: none; transition: opacity 0.2s;">
-              <span style="color: #ffffff; font-size: 16px; font-weight: bold;">f</span>
+          <div style="margin: 18px 0; text-align: center;">
+            <a href="https://www.facebook.com/profile.php?id=61586753652984"
+              style="display: inline-block; margin: 0 8px;">
+              <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png"
+                  width="18" height="18" alt="Facebook"
+                  style="display: block; border: 0;">
             </a>
-            <a href="https://twitter.com/totaltravelsg" style="display: inline-block; width: 34px; height: 34px; background-color: #0D9488; border-radius: 50%; text-align: center; line-height: 34px; margin: 0 5px; text-decoration: none;">
-              <span style="color: #ffffff; font-size: 16px; font-weight: bold;">𝕏</span>
+
+            <a href="https://x.com/TTS_Group"
+              style="display: inline-block; margin: 0 8px;">
+              <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png"
+                  width="18" height="18" alt="X"
+                  style="display: block; border: 0;">
             </a>
-            <a href="https://instagram.com/totaltravelsolutiongroup" style="display: inline-block; width: 34px; height: 34px; background-color: #0D9488; border-radius: 50%; text-align: center; line-height: 34px; margin: 0 5px; text-decoration: none;">
-              <span style="color: #ffffff; font-size: 16px; font-weight: bold;">📷</span>
+
+            <a href="https://www.instagram.com/ttsg.2025/"
+              style="display: inline-block; margin: 0 8px;">
+              <img src="https://cdn-icons-png.flaticon.com/512/733/733558.png"
+                  width="18" height="18" alt="Instagram"
+                  style="display: block; border: 0;">
             </a>
-            <a href="https://linkedin.com/company/totaltravelsolutiongroup" style="display: inline-block; width: 34px; height: 34px; background-color: #0D9488; border-radius: 50%; text-align: center; line-height: 34px; margin: 0 5px; text-decoration: none;">
-              <span style="color: #ffffff; font-size: 16px; font-weight: bold;">in</span>
+
+            <a href="https://www.linkedin.com/company/totaltravelsolutiongroup/"
+              style="display: inline-block; margin: 0 8px;">
+              <img src="https://cdn-icons-png.flaticon.com/512/733/733561.png"
+                  width="18" height="18" alt="LinkedIn"
+                  style="display: block; border: 0;">
             </a>
           </div>
 
@@ -767,9 +782,10 @@ export class ResendService {
 
           <!-- Company Info -->
           <p style="color: #64748b; font-size: 11px; margin: 0 0 6px 0; line-height: 1.6;">
-            <strong style="color: #475569;">TOTAL TRAVEL SOLUTION GROUP LTD</strong><br>
-            Registered in England & Wales | Company No: 16910276<br>
-            <a href="https://www.totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none; font-weight: 600;">www.totaltravelsolutiongroup.com</a>
+            <strong style="color: #475569;">Total Travel Solution Group LTD</strong><br>
+            Registered office: Bury Park, Luton, England, LU1 1HE.<br>
+            Registered in England and Wales Registered number: 16910276.<br>
+            E: <a href="mailto:customerservice@totaltravelsolutiongroup.com" style="color: #0D9488; text-decoration: none;">customerservice@totaltravelsolutiongroup.com</a> T: <a href="tel:+443301337044" style="color: #0D9488; text-decoration: none;">+44 33 0133 7044</a>
           </p>
 
           <!-- Copyright -->
@@ -806,11 +822,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Booking Confirmed!
                     </h1>
@@ -829,7 +845,7 @@ export class ResendService {
                     </p>
 
                     <!-- Booking Details Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 30px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 30px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Booking Reference
                       </p>
@@ -869,7 +885,7 @@ export class ResendService {
                     </p>
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -898,11 +914,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Driver Assigned!
                     </h1>
@@ -927,7 +943,7 @@ export class ResendService {
                     </div>
 
                     <!-- Driver Details Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Driver Details
                       </p>
@@ -954,7 +970,7 @@ export class ResendService {
                     </p>
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -985,11 +1001,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       New Job Available
                     </h1>
@@ -1008,7 +1024,7 @@ export class ResendService {
                     </p>
 
                     <!-- Job Details Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Job Details
                       </p>
@@ -1038,7 +1054,7 @@ export class ResendService {
 
                     <!-- CTA Button -->
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">
                         Submit Your Bid
                       </a>
                     </div>
@@ -1048,7 +1064,7 @@ export class ResendService {
                     </p>
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group Team</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -1079,11 +1095,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Congratulations!
                     </h1>
@@ -1108,7 +1124,7 @@ export class ResendService {
                     </div>
 
                     <!-- Job Details Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Job Details
                       </p>
@@ -1134,14 +1150,14 @@ export class ResendService {
 
                     <!-- CTA Button -->
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">
                         Submit Driver Details
                       </a>
                     </div>
 
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group Team</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -1170,11 +1186,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Action Required
                     </h1>
@@ -1207,7 +1223,7 @@ export class ResendService {
                     </p>
 
                     <!-- Job Details Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Job Details</p>
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
@@ -1231,7 +1247,7 @@ export class ResendService {
 
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group Team</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -1276,11 +1292,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Booking Cancelled
                     </h1>
@@ -1323,7 +1339,7 @@ export class ResendService {
                     </div>
 
                     <!-- Refund Information Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 20px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 20px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Refund Information
                       </p>
@@ -1337,7 +1353,7 @@ export class ResendService {
 
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group Team</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -1366,11 +1382,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Job Cancelled
                     </h1>
@@ -1420,7 +1436,7 @@ export class ResendService {
 
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">
                       Best regards,<br>
-                      <strong>The Total Travel Solution Group Team</strong>
+                      <strong>Customer Support</strong>
                     </p>
                   </td>
                 </tr>
@@ -1453,11 +1469,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Job Updated
                     </h1>
@@ -1560,11 +1576,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Total Travel Solution Group
                     </h1>
@@ -1634,7 +1650,7 @@ export class ResendService {
                 <!-- CTA Button -->
                 <tr>
                   <td style="padding: 0 30px 40px 30px; text-align: center;">
-                    <a href="${frontendUrl}/bookings/new" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(13, 148, 136, 0.3);">
+                    <a href="${frontendUrl}/bookings/new" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
                       Book Your First Transfer
                     </a>
                   </td>
@@ -1665,11 +1681,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Password Reset
                     </h1>
@@ -1688,7 +1704,7 @@ export class ResendService {
                     </p>
 
                     <!-- OTP Code Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 30px; text-align: center; margin: 0 0 30px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 30px; text-align: center; margin: 0 0 30px 0;">
                       <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Your OTP Code
                       </p>
@@ -1739,11 +1755,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       Email Verification
                     </h1>
@@ -1762,7 +1778,7 @@ export class ResendService {
                     </p>
 
                     <!-- OTP Code Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 30px; text-align: center; margin: 0 0 30px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 30px; text-align: center; margin: 0 0 30px 0;">
                       <p style="color: #475569; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         Your Verification Code
                       </p>
@@ -1819,9 +1835,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">🎉 Application Approved!</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Welcome to our operator network</p>
                   </td>
@@ -1832,7 +1848,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       Great news! Your operator application for <strong>${data.companyName}</strong> has been approved. You can now start bidding on jobs and growing your business with us.
                     </p>
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">What You Can Do Now</p>
                       <ul style="color: #334155; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
                         <li>Browse and bid on available jobs in your service areas</li>
@@ -1842,9 +1858,9 @@ export class ResendService {
                       </ul>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Start Bidding</a>
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Start Bidding</a>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -1870,9 +1886,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #64748b; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">Application Update</h1>
                     <p style="color: #e2e8f0; margin: 10px 0 0 0; font-size: 16px;">We've reviewed your application</p>
                   </td>
@@ -1892,7 +1908,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
                       If you believe this decision was made in error or would like to provide additional information, please contact our support team.
                     </p>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -1918,9 +1934,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #dc2626; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">⚠️ Account Suspended</h1>
                     <p style="color: #fecaca; margin: 10px 0 0 0; font-size: 16px;">Important notice about your operator account</p>
                   </td>
@@ -1945,7 +1961,7 @@ export class ResendService {
                         <li>Contact support to resolve this issue</li>
                       </ul>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -1973,9 +1989,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">✓ Account Reinstated</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Welcome back to our operator network</p>
                   </td>
@@ -1986,7 +2002,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       Great news! Your operator account for <strong>${data.companyName}</strong> has been reinstated. You can now resume bidding on jobs and accepting job offers.
                     </p>
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Your Account is Active</p>
                       <ul style="color: #334155; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
                         <li>Browse and bid on available jobs</li>
@@ -1995,9 +2011,9 @@ export class ResendService {
                       </ul>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Available Jobs</a>
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Available Jobs</a>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2025,9 +2041,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">Welcome, ${data.contactName}!</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your operator registration has been received</p>
                   </td>
@@ -2038,7 +2054,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       Thank you for registering <strong>${data.companyName}</strong> with Total Travel Solution Group. We're excited to have you join our operator network!
                     </p>
-                    <div style="background: linear-gradient(135deg, #fef9c3 0%, #fef08a 100%); border: 2px solid #eab308; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #fef9c3; border: 2px solid #eab308; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #854d0e; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">⏳ Pending Approval</p>
                       <p style="color: #713f12; font-size: 14px; line-height: 1.6; margin: 0;">
                         Your application is currently under review by our team. This process typically takes 1-2 business days. You'll receive an email once your account has been approved.
@@ -2053,9 +2069,9 @@ export class ResendService {
                       </ul>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/profile" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Complete Your Profile</a>
+                      <a href="${frontendUrl}/operator/profile" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Complete Your Profile</a>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2083,9 +2099,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #3b82f6; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">📋 New Operator Registration</h1>
                     <p style="color: #dbeafe; margin: 10px 0 0 0; font-size: 16px;">Action required: Review and approve</p>
                   </td>
@@ -2093,7 +2109,7 @@ export class ResendService {
                 <tr>
                   <td style="padding: 40px 30px;">
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">A new operator has registered on the platform and requires approval:</p>
-                    <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #3b82f6; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
                           <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 140px;">Company Name:</td>
@@ -2114,7 +2130,7 @@ export class ResendService {
                       </table>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/admin/operators/${data.operatorId}" style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Review Application</a>
+                      <a href="${frontendUrl}/admin/operators/${data.operatorId}" style="display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Review Application</a>
                     </div>
                     <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0;">Please review the operator's documents and profile before approving or rejecting the application.</p>
                   </td>
@@ -2144,9 +2160,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">🚗 Job Assigned</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">A job has been assigned to you by admin</p>
                   </td>
@@ -2157,7 +2173,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       A job has been manually assigned to you. Please review the details below and submit driver details as soon as possible.
                     </p>
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Job Details</p>
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
@@ -2183,9 +2199,9 @@ export class ResendService {
                       </table>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Job Details</a>
+                      <a href="${frontendUrl}/operator/jobs" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Job Details</a>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2211,9 +2227,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">🚗 Driver Being Assigned</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">We're assigning a driver to your booking</p>
                   </td>
@@ -2224,7 +2240,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       Great news! We're in the process of assigning a driver to your booking. You'll receive the driver details shortly before your pickup time.
                     </p>
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Your Booking</p>
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
@@ -2248,7 +2264,7 @@ export class ResendService {
                     <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0; padding: 15px; background-color: #f8fafc; border-radius: 6px;">
                       <strong>What's next?</strong> Once the driver is confirmed, you'll receive another email with their name, phone number, and vehicle details.
                     </p>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2274,9 +2290,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #64748b 0%, #94a3b8 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #64748b; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">Account Deactivated</h1>
                     <p style="color: #e2e8f0; margin: 10px 0 0 0; font-size: 16px;">Important notice about your account</p>
                   </td>
@@ -2296,7 +2312,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
                       If you believe this was done in error or would like to appeal this decision, please contact our support team.
                     </p>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2324,9 +2340,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">✓ Journey Completed</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Thank you for traveling with us!</p>
                   </td>
@@ -2337,7 +2353,7 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       Your journey has been completed successfully. We hope you had a pleasant experience!
                     </p>
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Trip Summary</p>
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
@@ -2361,9 +2377,9 @@ export class ResendService {
                     <div style="background-color: #fef9c3; border: 1px solid #eab308; border-radius: 8px; padding: 20px; margin: 0 0 25px 0; text-align: center;">
                       <p style="color: #854d0e; font-size: 14px; margin: 0 0 10px 0; font-weight: 600;">⭐ Rate Your Experience</p>
                       <p style="color: #713f12; font-size: 14px; margin: 0 0 15px 0;">Your feedback helps us improve our service and recognize our best drivers.</p>
-                      <a href="${frontendUrl}/bookings/${data.bookingReference}/review" style="display: inline-block; background: linear-gradient(135deg, #eab308 0%, #facc15 100%); color: #713f12; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; font-size: 14px;">Leave a Review</a>
+                      <a href="${frontendUrl}/bookings/${data.bookingReference}/review" style="display: inline-block; background-color: #eab308; color: #713f12; text-decoration: none; padding: 12px 30px; border-radius: 8px; font-weight: bold; font-size: 14px;">Leave a Review</a>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2389,9 +2405,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">📝 Booking Updated</h1>
                     <p style="color: #E0F2F1; margin: 10px 0 0 0; font-size: 16px;">Your booking details have been modified</p>
                   </td>
@@ -2402,13 +2418,13 @@ export class ResendService {
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
                       Your booking <strong>${data.bookingReference}</strong> has been updated. Please review the changes below.
                     </p>
-                    <div style="background: linear-gradient(135deg, #fef9c3 0%, #fef08a 100%); border: 2px solid #eab308; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #fef9c3; border: 2px solid #eab308; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #854d0e; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Changes Made</p>
                       <ul style="color: #713f12; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
                         ${data.changes.map(change => `<li>${change}</li>`).join('')}
                       </ul>
                     </div>
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Current Booking Details</p>
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
@@ -2429,7 +2445,7 @@ export class ResendService {
                         </tr>
                       </table>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2460,9 +2476,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, ${urgencyColor} 0%, ${data.daysUntilExpiry <= 7 ? '#ef4444' : '#facc15'} 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: ${urgencyColor}; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">⚠️ Document Expiring Soon</h1>
                     <p style="color: ${data.daysUntilExpiry <= 7 ? '#fecaca' : '#fef9c3'}; margin: 10px 0 0 0; font-size: 16px;">Action required to maintain your operator status</p>
                   </td>
@@ -2488,12 +2504,12 @@ export class ResendService {
                       </table>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/documents" style="display: inline-block; background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Upload New Document</a>
+                      <a href="${frontendUrl}/operator/documents" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Upload New Document</a>
                     </div>
                     <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0 0 20px 0; padding: 15px; background-color: #f8fafc; border-radius: 6px;">
                       <strong>Important:</strong> If your document expires without renewal, your operator account may be suspended until a valid document is uploaded.
                     </p>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2521,9 +2537,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #dc2626; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">🚨 Document Expired</h1>
                     <p style="color: #fecaca; margin: 10px 0 0 0; font-size: 16px;">Immediate action required</p>
                   </td>
@@ -2551,9 +2567,9 @@ export class ResendService {
                       <p style="color: #854d0e; font-size: 14px; margin: 0; font-weight: 600;">⚠️ Your account may be suspended if a valid document is not uploaded soon.</p>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/operator/documents" style="display: inline-block; background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Upload New Document Now</a>
+                      <a href="${frontendUrl}/operator/documents" style="display: inline-block; background-color: #dc2626; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Upload New Document Now</a>
                     </div>
-                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>The Total Travel Solution Group Team</strong></p>
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
@@ -2581,9 +2597,9 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
                 <tr>
-                  <td style="background: linear-gradient(135deg, #f97316 0%, #fb923c 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #f97316; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">📋 Document Expiry Alert</h1>
                     <p style="color: #fed7aa; margin: 10px 0 0 0; font-size: 16px;">Operator document requires attention</p>
                   </td>
@@ -2591,7 +2607,7 @@ export class ResendService {
                 <tr>
                   <td style="padding: 40px 30px;">
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">An operator's document is expiring or has expired and may require admin action:</p>
-                    <div style="background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%); border: 2px solid #f97316; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #fff7ed; border: 2px solid #f97316; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <table style="width: 100%; border-collapse: collapse;">
                         <tr>
                           <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 120px;">Operator:</td>
@@ -2612,7 +2628,7 @@ export class ResendService {
                       </table>
                     </div>
                     <div style="text-align: center; margin: 0 0 30px 0;">
-                      <a href="${frontendUrl}/admin/operators/${data.operatorId}" style="display: inline-block; background: linear-gradient(135deg, #f97316 0%, #fb923c 100%); color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Operator Details</a>
+                      <a href="${frontendUrl}/admin/operators/${data.operatorId}" style="display: inline-block; background-color: #f97316; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Operator Details</a>
                     </div>
                     <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin: 0;">You may need to contact the operator or suspend their account if the document is not renewed.</p>
                   </td>
@@ -2631,7 +2647,7 @@ export class ResendService {
     const driverDetailsSection = data.hasDriverDetails
       ? `
                     <!-- Driver Details Box -->
-                    <div style="background: linear-gradient(135deg, #f0fdfa 0%, #ccfbf1 100%); border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
                       <p style="color: #0D9488; font-size: 14px; margin: 0 0 15px 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">
                         🚗 Your Driver Details
                       </p>
@@ -2674,11 +2690,11 @@ export class ResendService {
         <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
           <tr>
             <td align="center" style="padding: 40px 0;">
-              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; box-shadow: 0 2px 8px rgba(0,0,0,0.05);">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
 
-                <!-- Header with Teal Gradient -->
+                <!-- Header -->
                 <tr>
-                  <td style="background: linear-gradient(135deg, #0D9488 0%, #14B8A6 100%); padding: 40px 30px; text-align: center;">
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
                     <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">
                       ⏰ Journey Reminder
                     </h1>

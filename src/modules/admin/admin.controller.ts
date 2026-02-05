@@ -268,6 +268,23 @@ export class AdminController {
     return { success: true, data };
   }
 
+  @Post('jobs/:jobId/confirm-completion')
+  @HttpCode(HttpStatus.OK)
+  async confirmJobCompletion(@Param('jobId') jobId: string) {
+    const data = await this.adminService.confirmJobCompletion(jobId);
+    return { success: true, data };
+  }
+
+  @Post('jobs/:jobId/reject-completion')
+  @HttpCode(HttpStatus.OK)
+  async rejectJobCompletion(
+    @Param('jobId') jobId: string,
+    @Query('reason') reason?: string,
+  ) {
+    const data = await this.adminService.rejectJobCompletion(jobId, reason);
+    return { success: true, data };
+  }
+
   // =========================================================================
   // PRICING RULES
   // =========================================================================

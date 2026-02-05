@@ -3,7 +3,7 @@ import { PrismaService } from '../../database/prisma.service.js';
 import { Job, JobStatus, JourneyType, BidStatus, PayoutStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { SystemSettingsService } from '../system-settings/system-settings.service.js';
-import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
+
 
 @Injectable()
 export class JobsService {
@@ -12,7 +12,6 @@ export class JobsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly systemSettingsService: SystemSettingsService,
-    private readonly notificationsService: NotificationsService,
   ) {}
 
   /**
@@ -393,51 +392,15 @@ export class JobsService {
       );
     }
 
-    const [updatedJob] = await this.prisma.$transaction([
-      // Update job
-      this.prisma.job.update({
-        where: { id: jobId },
-        data: {
-          status: JobStatus.COMPLETED,
-          completedAt: new Date(),
-          payoutStatus: PayoutStatus.PENDING,
-        },
-        include: { booking: true },
-      }),
-      // Update booking
-      this.prisma.booking.update({
-        where: { id: job.bookingId },
-        data: { status: 'COMPLETED' },
-      }),
-      // Update operator stats
-      ...(job.assignedOperatorId
-        ? [
-            this.prisma.operatorProfile.update({
-              where: { id: job.assignedOperatorId },
-              data: {
-                completedJobs: { increment: 1 },
-              },
-            }),
-          ]
-        : []),
-    ]);
+    const updatedJob = await this.prisma.job.update({
+      where: { id: jobId },
+      data: {
+        status: JobStatus.PENDING_COMPLETION,
+      },
+      include: { booking: true },
+    });
 
-    this.logger.log(`Job ${jobId} completed`);
-
-    // Send job completion notification to customer
-    if (updatedJob.booking) {
-      this.notificationsService
-        .sendJobCompletion(
-          updatedJob.booking.customerId,
-          updatedJob.booking.bookingReference,
-          updatedJob.booking.pickupAddress,
-          updatedJob.booking.dropoffAddress,
-          updatedJob.booking.pickupDatetime,
-        )
-        .catch((err) => {
-          this.logger.error(`Failed to send job completion notification: ${err.message}`);
-        });
-    }
+    this.logger.log(`Job ${jobId} marked as pending completion - awaiting admin confirmation`);
 
     return updatedJob;
   }

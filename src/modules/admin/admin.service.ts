@@ -12,6 +12,7 @@ import {
   TransactionStatus,
   BookingStatus,
   OperatorApprovalStatus,
+  PayoutStatus,
   Prisma,
 } from '@prisma/client';
 import type { OperatorApprovalDto, ListOperatorsQueryDto } from './dto/operator-approval.dto.js';
@@ -2376,6 +2377,101 @@ export class AdminService {
       description: updated.description,
       isActive: updated.isActive,
       updatedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  async confirmJobCompletion(jobId: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: {
+        booking: true,
+        assignedOperator: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    if (job.status !== JobStatus.PENDING_COMPLETION) {
+      throw new BadRequestException('Job is not pending completion');
+    }
+
+    const [updatedJob] = await this.prisma.$transaction([
+      this.prisma.job.update({
+        where: { id: jobId },
+        data: {
+          status: JobStatus.COMPLETED,
+          completedAt: new Date(),
+          payoutStatus: PayoutStatus.PENDING,
+        },
+        include: { booking: true },
+      }),
+      this.prisma.booking.update({
+        where: { id: job.bookingId },
+        data: { status: 'COMPLETED' },
+      }),
+      ...(job.assignedOperatorId
+        ? [
+            this.prisma.operatorProfile.update({
+              where: { id: job.assignedOperatorId },
+              data: {
+                completedJobs: { increment: 1 },
+              },
+            }),
+          ]
+        : []),
+    ]);
+
+    this.logger.log(`Job ${jobId} completion confirmed by admin`);
+
+    if (updatedJob.booking) {
+      this.notificationsService
+        .sendJobCompletion(
+          updatedJob.booking.customerId,
+          updatedJob.booking.bookingReference,
+          updatedJob.booking.pickupAddress,
+          updatedJob.booking.dropoffAddress,
+          updatedJob.booking.pickupDatetime,
+        )
+        .catch((err) => {
+          this.logger.error(`Failed to send job completion notification: ${err.message}`);
+        });
+    }
+
+    return {
+      job: { id: updatedJob.id, status: updatedJob.status },
+      message: 'Job completion confirmed',
+    };
+  }
+
+  async rejectJobCompletion(jobId: string, reason?: string) {
+    const job = await this.prisma.job.findUnique({
+      where: { id: jobId },
+      include: { booking: true },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    if (job.status !== JobStatus.PENDING_COMPLETION) {
+      throw new BadRequestException('Job is not pending completion');
+    }
+
+    const updatedJob = await this.prisma.job.update({
+      where: { id: jobId },
+      data: {
+        status: JobStatus.IN_PROGRESS,
+      },
+    });
+
+    this.logger.log(`Job ${jobId} completion rejected by admin${reason ? `: ${reason}` : ''}`);
+
+    return {
+      job: { id: updatedJob.id, status: updatedJob.status },
+      message: 'Job completion rejected - status reverted to IN_PROGRESS',
+      reason: reason || null,
     };
   }
 }

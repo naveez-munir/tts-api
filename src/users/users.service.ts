@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../database/prisma.service.js';
 import type { User } from '@prisma/client';
@@ -27,6 +27,15 @@ export class UsersService {
     phoneNumber?: string;
     role: 'CUSTOMER' | 'OPERATOR' | 'ADMIN';
   }): Promise<User> {
+    if (data.phoneNumber) {
+      const existingUserWithPhone = await this.prisma.user.findFirst({
+        where: { phoneNumber: data.phoneNumber },
+      });
+      if (existingUserWithPhone) {
+        throw new BadRequestException('Phone number already exists');
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
     return this.prisma.user.create({
       data: {
