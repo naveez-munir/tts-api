@@ -763,6 +763,15 @@ export class OperatorsService {
       throw new NotFoundException('Operator profile not found');
     }
 
+    if (dto.registrationPlate) {
+      const existingVehicle = await this.prisma.vehicle.findFirst({
+        where: { registrationPlate: dto.registrationPlate },
+      });
+      if (existingVehicle) {
+        throw new BadRequestException('Vehicle with this registration plate already exists');
+      }
+    }
+
     if (dto.driverId) {
       const driver = await this.prisma.driver.findFirst({
         where: {
@@ -969,6 +978,24 @@ export class OperatorsService {
 
     if (!profile) {
       throw new NotFoundException('Operator profile not found');
+    }
+
+    if (dto.email) {
+      const existingDriverWithEmail = await this.prisma.driver.findFirst({
+        where: { email: dto.email },
+      });
+      if (existingDriverWithEmail) {
+        throw new BadRequestException('Driver with this email already exists');
+      }
+    }
+
+    if (dto.phoneNumber) {
+      const existingDriverWithPhone = await this.prisma.driver.findFirst({
+        where: { phoneNumber: dto.phoneNumber },
+      });
+      if (existingDriverWithPhone) {
+        throw new BadRequestException('Driver with this phone number already exists');
+      }
     }
 
     return this.prisma.driver.create({
