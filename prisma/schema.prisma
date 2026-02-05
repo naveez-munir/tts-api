@@ -13,7 +13,7 @@ model User {
   password        String
   firstName       String
   lastName        String
-  phoneNumber     String?
+  phoneNumber     String?          @unique
   role            UserRole
   isEmailVerified Boolean          @default(false)
   isActive        Boolean          @default(true)
@@ -68,7 +68,7 @@ model Vehicle {
   id                    String          @id @default(cuid())
   operatorId            String
   vehicleType           VehicleType
-  registrationPlate     String
+  registrationPlate     String          @unique
   make                  String
   model                 String
   year                  Int
@@ -117,17 +117,17 @@ model Driver {
   operatorId              String
   firstName               String
   lastName                String
-  email                   String?
-  phoneNumber             String
+  email                   String?         @unique
+  phoneNumber             String          @unique
   profileImageUrl         String?
   dateOfBirth             DateTime?
   passportUrl             String?
   passportExpiry          DateTime?
-  drivingLicenseNumber    String?
+  drivingLicenseNumber    String?         @unique
   drivingLicenseFrontUrl  String?
   drivingLicenseBackUrl   String?
   drivingLicenseExpiry    DateTime?
-  nationalInsuranceNo     String?
+  nationalInsuranceNo     String?         @unique
   nationalInsuranceDocUrl String?
   taxiCertificationUrl    String?
   taxiCertificationExpiry DateTime?

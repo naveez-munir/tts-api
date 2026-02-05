@@ -5,6 +5,7 @@ import { SystemSettingsService } from '../system-settings/system-settings.servic
 import { BiddingQueueService } from '../../queue/bidding-queue.service.js';
 import { S3Service } from '../../integrations/s3/s3.service.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
+import { PayoutsService } from '../payouts/payouts.service.js';
 import {
   JobStatus,
   BidStatus,
@@ -35,6 +36,7 @@ export class AdminService {
     private readonly biddingQueueService: BiddingQueueService,
     private readonly s3Service: S3Service,
     private readonly notificationsService: NotificationsService,
+    private readonly payoutsService: PayoutsService,
   ) {}
 
   // =========================================================================
@@ -57,10 +59,9 @@ export class AdminService {
       // Overall stats
       totalBookings,
       totalRevenue,
-      platformCommission,
       totalOperatorPayouts,
-      pendingOperatorPayouts,
       pendingRefunds,
+      completedRefunds,
 
       // Operator stats
       activeOperators,
@@ -92,8 +93,8 @@ export class AdminService {
       // Revenue by vehicle type
       revenueByVehicleType,
 
-      // Completed jobs pending payout
-      completedJobsPendingPayout,
+      // Payouts forecast from PayoutsService
+      payoutsForecast,
     ] = await Promise.all([
       // Overall stats
       this.prisma.booking.count(),
@@ -102,19 +103,15 @@ export class AdminService {
         _sum: { amount: true },
       }),
       this.prisma.transaction.aggregate({
-        where: { transactionType: TransactionType.PLATFORM_COMMISSION, status: TransactionStatus.COMPLETED },
-        _sum: { amount: true },
-      }),
-      this.prisma.transaction.aggregate({
         where: { transactionType: TransactionType.OPERATOR_PAYOUT, status: TransactionStatus.COMPLETED },
         _sum: { amount: true },
       }),
       this.prisma.transaction.aggregate({
-        where: { transactionType: TransactionType.OPERATOR_PAYOUT, status: TransactionStatus.PENDING },
+        where: { transactionType: TransactionType.REFUND, status: TransactionStatus.PENDING },
         _sum: { amount: true },
       }),
       this.prisma.transaction.aggregate({
-        where: { transactionType: TransactionType.REFUND, status: TransactionStatus.PENDING },
+        where: { transactionType: TransactionType.REFUND, status: TransactionStatus.COMPLETED },
         _sum: { amount: true },
       }),
 
@@ -207,27 +204,7 @@ export class AdminService {
         _count: { id: true },
       }),
 
-      // Completed jobs pending operator payout
-      this.prisma.job.findMany({
-        where: {
-          status: JobStatus.COMPLETED,
-          booking: {
-            transactions: {
-              none: {
-                transactionType: TransactionType.OPERATOR_PAYOUT,
-                status: TransactionStatus.COMPLETED,
-              },
-            },
-          },
-        },
-        include: {
-          assignedOperator: { select: { id: true, companyName: true } },
-          winningBid: { select: { bidAmount: true } },
-          booking: { select: { bookingReference: true, customerPrice: true, pickupDatetime: true } },
-        },
-        orderBy: { completedAt: 'desc' },
-        take: 50,
-      }),
+      this.payoutsService.getPayoutsForecast(),
     ]);
 
     // === PROCESS REVENUE TREND DATA ===
@@ -241,29 +218,21 @@ export class AdminService {
       .map(([date, amount]) => ({ date, amount }))
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    // === PROCESS PENDING PAYOUTS BY OPERATOR ===
-    const payoutsByOperator: Record<string, { operatorId: string; companyName: string; totalDue: number; jobCount: number }> = {};
+    // === PROCESS PENDING PAYOUTS FROM FORECAST ===
+    const pendingPayoutsByOperator = payoutsForecast.map((op: any) => ({
+      operatorId: op.operatorId,
+      companyName: op.companyName,
+      totalDue: op.summary.totalAmount,
+      totalEligible: op.summary.totalEligible,
+      totalPending: op.summary.totalPending,
+      totalHeldBack: op.summary.totalHeldBack,
+      jobCount: op.summary.totalJobCount,
+      eligibleJobCount: op.summary.eligibleJobCount,
+      pendingJobCount: op.summary.pendingJobCount,
+      heldBackJobCount: op.summary.heldBackJobCount,
+    })).sort((a: any, b: any) => b.totalDue - a.totalDue);
 
-    completedJobsPendingPayout.forEach((job) => {
-      if (job.assignedOperator && job.winningBid) {
-        const operatorId = job.assignedOperator.id;
-        const amount = Number(job.winningBid.bidAmount);
-
-        if (!payoutsByOperator[operatorId]) {
-          payoutsByOperator[operatorId] = {
-            operatorId,
-            companyName: job.assignedOperator.companyName,
-            totalDue: 0,
-            jobCount: 0,
-          };
-        }
-
-        payoutsByOperator[operatorId].totalDue += amount;
-        payoutsByOperator[operatorId].jobCount += 1;
-      }
-    });
-
-    const pendingPayoutsByOperator = Object.values(payoutsByOperator).sort((a, b) => b.totalDue - a.totalDue);
+    const totalPendingPayoutsJobCount = pendingPayoutsByOperator.reduce((sum: number, op: any) => sum + op.jobCount, 0);
 
     // === BOOKING STATUS BREAKDOWN ===
     const statusBreakdown = bookingsByStatus.reduce((acc, item) => {
@@ -358,31 +327,32 @@ export class AdminService {
       });
     }
 
-    const totalPendingPayouts = pendingPayoutsByOperator.reduce((sum, op) => sum + op.totalDue, 0);
+    const totalPendingPayouts = pendingPayoutsByOperator.reduce((sum: number, op: any) => sum + op.totalDue, 0);
+    const totalEligiblePayouts = pendingPayoutsByOperator.reduce((sum: number, op: any) => sum + op.totalEligible, 0);
     if (totalPendingPayouts > 0) {
       alerts.push({
         type: 'PENDING_PAYOUTS',
-        message: `£${totalPendingPayouts.toFixed(2)} due to operators for ${completedJobsPendingPayout.length} completed jobs`,
+        message: `£${totalPendingPayouts.toFixed(2)} due to operators for ${totalPendingPayoutsJobCount} completed jobs (£${totalEligiblePayouts.toFixed(2)} eligible now)`,
         severity: 'WARNING',
-        count: completedJobsPendingPayout.length,
+        count: totalPendingPayoutsJobCount,
       });
     }
 
     // === CALCULATE NET PROFIT ===
-    const totalPlatformCommission = Number(platformCommission._sum.amount) || 0;
+    const totalRevenueAmount = Number(totalRevenue._sum.amount) || 0;
     const totalPayoutsCompleted = Number(totalOperatorPayouts._sum.amount) || 0;
-    const netProfit = totalPlatformCommission - totalPayoutsCompleted;
+    const totalCompletedRefunds = Number(completedRefunds._sum.amount) || 0;
+    const netProfit = totalRevenueAmount - totalPayoutsCompleted - totalPendingPayouts - totalCompletedRefunds;
 
     return {
       // Financial Overview
       financialOverview: {
-        totalRevenue: Number(totalRevenue._sum.amount) || 0,
-        platformCommission: totalPlatformCommission,
+        totalRevenue: totalRevenueAmount,
         operatorPayoutsCompleted: totalPayoutsCompleted,
-        operatorPayoutsPending: Number(pendingOperatorPayouts._sum.amount) || 0,
         pendingRefunds: Number(pendingRefunds._sum.amount) || 0,
         netProfit,
         totalPendingPayoutsDue: totalPendingPayouts,
+        totalEligiblePayouts,
       },
 
       // KPIs
@@ -431,7 +401,8 @@ export class AdminService {
       // Pending Payouts by Operator
       pendingPayouts: {
         totalAmount: totalPendingPayouts,
-        jobCount: completedJobsPendingPayout.length,
+        totalEligible: totalEligiblePayouts,
+        jobCount: totalPendingPayoutsJobCount,
         byOperator: pendingPayoutsByOperator,
       },
 

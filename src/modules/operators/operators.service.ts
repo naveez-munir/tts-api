@@ -852,7 +852,15 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to update this vehicle');
     }
 
-    // Check if isActive status is changing
+    if (dto.registrationPlate && dto.registrationPlate !== vehicle.registrationPlate) {
+      const existingVehicle = await this.prisma.vehicle.findFirst({
+        where: { registrationPlate: dto.registrationPlate, id: { not: vehicleId } },
+      });
+      if (existingVehicle) {
+        throw new BadRequestException('Vehicle with this registration plate already exists');
+      }
+    }
+
     const isActiveChanging = dto.isActive !== undefined && dto.isActive !== vehicle.isActive;
 
     return this.prisma.$transaction(async (tx) => {
@@ -1084,7 +1092,42 @@ export class OperatorsService {
       throw new BadRequestException('Not authorized to update this driver');
     }
 
-    // Detect active status change and whether driver has a linked vehicle
+    if (dto.email && dto.email !== driver.email) {
+      const existingDriverWithEmail = await this.prisma.driver.findFirst({
+        where: { email: dto.email, id: { not: driverId } },
+      });
+      if (existingDriverWithEmail) {
+        throw new BadRequestException('Driver with this email already exists');
+      }
+    }
+
+    if (dto.phoneNumber && dto.phoneNumber !== driver.phoneNumber) {
+      const existingDriverWithPhone = await this.prisma.driver.findFirst({
+        where: { phoneNumber: dto.phoneNumber, id: { not: driverId } },
+      });
+      if (existingDriverWithPhone) {
+        throw new BadRequestException('Driver with this phone number already exists');
+      }
+    }
+
+    if (dto.drivingLicenseNumber && dto.drivingLicenseNumber !== driver.drivingLicenseNumber) {
+      const existingDriverWithLicense = await this.prisma.driver.findFirst({
+        where: { drivingLicenseNumber: dto.drivingLicenseNumber, id: { not: driverId } },
+      });
+      if (existingDriverWithLicense) {
+        throw new BadRequestException('Driver with this driving license number already exists');
+      }
+    }
+
+    if (dto.nationalInsuranceNo && dto.nationalInsuranceNo !== driver.nationalInsuranceNo) {
+      const existingDriverWithNI = await this.prisma.driver.findFirst({
+        where: { nationalInsuranceNo: dto.nationalInsuranceNo, id: { not: driverId } },
+      });
+      if (existingDriverWithNI) {
+        throw new BadRequestException('Driver with this national insurance number already exists');
+      }
+    }
+
     const isBeingDeactivated = dto.isActive === false && driver.isActive === true;
     const isBeingReactivated = dto.isActive === true && driver.isActive === false;
 

@@ -53,6 +53,24 @@ export class UsersService {
     id: string,
     data: Partial<User>,
   ): Promise<User> {
+    if (data.email) {
+      const existingUserWithEmail = await this.prisma.user.findFirst({
+        where: { email: data.email, id: { not: id } },
+      });
+      if (existingUserWithEmail) {
+        throw new BadRequestException('Email already exists');
+      }
+    }
+
+    if (data.phoneNumber) {
+      const existingUserWithPhone = await this.prisma.user.findFirst({
+        where: { phoneNumber: data.phoneNumber, id: { not: id } },
+      });
+      if (existingUserWithPhone) {
+        throw new BadRequestException('Phone number already exists');
+      }
+    }
+
     return this.prisma.user.update({
       where: { id },
       data,

@@ -6,9 +6,10 @@ import { SystemSettingsModule } from '../system-settings/system-settings.module.
 import { BiddingQueueModule } from '../../queue/bidding-queue.module.js';
 import { S3Module } from '../../integrations/s3/s3.module.js';
 import { NotificationsModule } from '../../integrations/notifications/notifications.module.js';
+import { PayoutsModule } from '../payouts/payouts.module.js';
 
 @Module({
-  imports: [StripeModule, SystemSettingsModule, BiddingQueueModule, S3Module, NotificationsModule],
+  imports: [StripeModule, SystemSettingsModule, BiddingQueueModule, S3Module, NotificationsModule, PayoutsModule],
   controllers: [AdminController],
   providers: [AdminService],
   exports: [AdminService],
