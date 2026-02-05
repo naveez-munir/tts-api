@@ -998,6 +998,42 @@ export class OperatorsService {
       }
     }
 
+    if (dto.nationalInsuranceNo) {
+      const existingDriverWithNI = await this.prisma.driver.findFirst({
+        where: { nationalInsuranceNo: dto.nationalInsuranceNo },
+      });
+      if (existingDriverWithNI) {
+        throw new BadRequestException('Driver with this national insurance number already exists');
+      }
+    }
+
+    if (dto.drivingLicenseNumber) {
+      const existingDriverWithLicense = await this.prisma.driver.findFirst({
+        where: { drivingLicenseNumber: dto.drivingLicenseNumber },
+      });
+      if (existingDriverWithLicense) {
+        throw new BadRequestException('Driver with this driving license number already exists');
+      }
+    }
+
+    if (dto.phvLicenseNumber) {
+      const existingDriverWithPhv = await this.prisma.driver.findFirst({
+        where: { phvLicenseNumber: dto.phvLicenseNumber },
+      });
+      if (existingDriverWithPhv) {
+        throw new BadRequestException('Driver with this PHV license number already exists');
+      }
+    }
+
+    if (dto.badgeNumber) {
+      const existingDriverWithBadge = await this.prisma.driver.findFirst({
+        where: { badgeNumber: dto.badgeNumber },
+      });
+      if (existingDriverWithBadge) {
+        throw new BadRequestException('Driver with this badge number already exists');
+      }
+    }
+
     return this.prisma.driver.create({
       data: {
         operatorId: profile.id,
