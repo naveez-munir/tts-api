@@ -109,6 +109,96 @@ export class OperatorsService {
     return profile;
   }
 
+  /**
+   * Get operator earnings and performance statistics
+   * Reusable method for both operator dashboard and admin panel
+   */
+  async getOperatorStats(operatorId: string) {
+    const [totalBids, wonBids, totalJobs, completedJobs, unpaidJobs, completedPayoutJobs, processingPayoutJobs] = await Promise.all([
+      this.prisma.bid.count({
+        where: { operatorId },
+      }),
+
+      this.prisma.bid.count({
+        where: {
+          operatorId,
+          status: 'WON',
+        },
+      }),
+
+      this.prisma.job.count({
+        where: {
+          assignedOperatorId: operatorId,
+        },
+      }),
+
+      this.prisma.job.count({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+        },
+      }),
+
+      this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: {
+            in: [PayoutStatus.PENDING, PayoutStatus.NOT_ELIGIBLE]
+          }
+        },
+        select: {
+          winningBid: {
+            select: { bidAmount: true }
+          }
+        }
+      }),
+
+      this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: PayoutStatus.COMPLETED
+        },
+        select: {
+          winningBid: {
+            select: { bidAmount: true }
+          }
+        }
+      }),
+
+      this.prisma.job.findMany({
+        where: {
+          assignedOperatorId: operatorId,
+          status: JobStatus.COMPLETED,
+          payoutStatus: PayoutStatus.PROCESSING
+        },
+        select: {
+          winningBid: {
+            select: { bidAmount: true }
+          }
+        }
+      })
+    ]);
+
+    const totalPendingEarnings = unpaidJobs.reduce((sum, job) => sum + Number(job.winningBid?.bidAmount || 0), 0);
+    const completedPayoutsAmount = completedPayoutJobs.reduce((sum, job) => sum + Number(job.winningBid?.bidAmount || 0), 0);
+    const processingPayoutsAmount = processingPayoutJobs.reduce((sum, job) => sum + Number(job.winningBid?.bidAmount || 0), 0);
+    const lifetimeEarnings = totalPendingEarnings + completedPayoutsAmount + processingPayoutsAmount;
+
+    return {
+      totalBids,
+      wonBids,
+      totalJobs,
+      completedJobs,
+      totalPendingEarnings,
+      completedPayouts: completedPayoutsAmount,
+      processingPayouts: processingPayoutsAmount,
+      unpaidJobCount: unpaidJobs.length,
+      lifetimeEarnings,
+    };
+  }
+
   async getDashboard(userId: string): Promise<any> {
     const profile = await this.prisma.operatorProfile.findUnique({
       where: { userId },
@@ -124,98 +214,28 @@ export class OperatorsService {
       throw new NotFoundException(`Operator profile not found for user ${userId}`);
     }
 
-    const [totalBids, wonBids, availableJobs, totalJobs, completedJobs, unpaidJobs, completedPayouts, processingPayouts] = await Promise.all([
-      this.prisma.bid.count({
-        where: { operatorId: profile.id },
-      }),
-
-      this.prisma.bid.count({
-        where: {
-          operatorId: profile.id,
-          status: 'WON',
-        },
-      }),
-
-      this.prisma.job.findMany({
-        where: {
-          status: JobStatus.OPEN_FOR_BIDDING,
-          booking: {
-            pickupPostcode: {
-              startsWith: profile.serviceAreas[0]?.postcode.substring(0, 3) || '',
-            },
+    // Get available jobs in operator's service area
+    const availableJobs = await this.prisma.job.findMany({
+      where: {
+        status: JobStatus.OPEN_FOR_BIDDING,
+        booking: {
+          pickupPostcode: {
+            startsWith: profile.serviceAreas[0]?.postcode.substring(0, 3) || '',
           },
         },
-      }),
+      },
+    });
 
-      this.prisma.job.count({
-        where: {
-          assignedOperatorId: profile.id,
-        },
-      }),
-
-      this.prisma.job.count({
-        where: {
-          assignedOperatorId: profile.id,
-          status: JobStatus.COMPLETED,
-        },
-      }),
-
-      this.prisma.job.findMany({
-        where: {
-          assignedOperatorId: profile.id,
-          status: JobStatus.COMPLETED,
-          payoutStatus: {
-            in: [PayoutStatus.PENDING, PayoutStatus.NOT_ELIGIBLE]
-          }
-        },
-        select: {
-          winningBid: {
-            select: { bidAmount: true }
-          }
-        }
-      }),
-
-      this.prisma.job.aggregate({
-        where: {
-          assignedOperatorId: profile.id,
-          status: JobStatus.COMPLETED,
-          payoutStatus: PayoutStatus.COMPLETED
-        },
-        _sum: {
-          platformMargin: true
-        }
-      }),
-
-      this.prisma.job.aggregate({
-        where: {
-          assignedOperatorId: profile.id,
-          status: JobStatus.COMPLETED,
-          payoutStatus: PayoutStatus.PROCESSING
-        },
-        _sum: {
-          platformMargin: true
-        }
-      })
-    ]);
-
-    const totalPendingEarnings = unpaidJobs.reduce((sum, job) => sum + Number(job.winningBid?.bidAmount || 0), 0);
-    const completedPayoutsAmount = Number(completedPayouts._sum.platformMargin || 0);
-    const processingPayoutsAmount = Number(processingPayouts._sum.platformMargin || 0);
+    // Get earnings and performance stats
+    const stats = await this.getOperatorStats(profile.id);
 
     return {
       profile,
       stats: {
-        totalBids,
-        wonBids,
+        ...stats,
         availableJobs: availableJobs.length,
         reputationScore: profile.reputationScore,
-        totalJobs,
-        completedJobs,
         approvalStatus: profile.approvalStatus,
-        totalPendingEarnings,
-        completedPayouts: completedPayoutsAmount,
-        processingPayouts: processingPayoutsAmount,
-        unpaidJobCount: unpaidJobs.length,
       },
     };
   }

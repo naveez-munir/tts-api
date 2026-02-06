@@ -694,7 +694,7 @@ export class AdminService {
   }
 
   /**
-   * Get single operator by ID with full details (vehicles, drivers)
+   * Get single operator by ID with full details (vehicles, drivers, earnings stats)
    */
   async getOperatorById(operatorId: string) {
     const operator = await this.prisma.operatorProfile.findUnique({
@@ -715,6 +715,8 @@ export class AdminService {
     if (!operator) {
       throw new NotFoundException('Operator not found');
     }
+
+    const operatorStats = await this.operatorsService.getOperatorStats(operatorId);
 
     // Generate presigned URLs for vehicle documents and photos
     const vehiclesWithUrls = await Promise.all(
@@ -812,8 +814,8 @@ export class AdminService {
       vatNumber: operator.vatNumber,
       approvalStatus: operator.approvalStatus,
       reputationScore: Number(operator.reputationScore),
-      completedJobsCount: operator.completedJobs,
-      totalJobs: operator.totalJobs,
+      completedJobsCount: operatorStats.completedJobs,
+      totalJobs: operatorStats.totalJobs,
       createdAt: operator.createdAt.toISOString(),
       serviceAreas: operator.serviceAreas.map((sa) => sa.postcode),
       vehiclesCount: operator.vehicles.length,
@@ -821,6 +823,7 @@ export class AdminService {
       user: operator.user,
       vehicles: vehiclesWithUrls,
       drivers: driversWithUrls,
+      stats: operatorStats,
     };
   }
 
