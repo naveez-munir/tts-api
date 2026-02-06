@@ -303,10 +303,15 @@ export class QuoteService {
     distanceMiles: number,
     rules: { ruleType: string; vehicleType: VehicleType | null; baseValue: Decimal }[],
   ): Promise<{ distanceCharge: number; perMileRate: number }> {
-    // Get base per-mile rate
-    const basePerMileRate = await this.getPerMileRate(vehicleType, rules);
+    let basePerMileRate = await this.getPerMileRate(vehicleType, rules);
 
-    // Get rate reduction per 100 miles from VehicleCapacity
+    const minimumMilesThreshold = await this.systemSettingsService.getSettingOrDefault('MINIMUM_MILES_THRESHOLD', 40);
+    const shortDistanceMultiplier = await this.systemSettingsService.getSettingOrDefault('SHORT_DISTANCE_MULTIPLIER', 1);
+
+    if (distanceMiles < minimumMilesThreshold && shortDistanceMultiplier > 1) {
+      basePerMileRate = basePerMileRate * shortDistanceMultiplier;
+    }
+
     const vehicleCapacity = await this.prisma.vehicleCapacity.findUnique({
       where: { vehicleType },
     });

@@ -699,6 +699,22 @@ async function main(): Promise<void> {
       description: 'Airport pickup/dropoff fee (£)',
       isActive: true,
     },
+    {
+      category: 'PRICING',
+      key: 'MINIMUM_MILES_THRESHOLD',
+      value: '40',
+      dataType: 'NUMBER',
+      description: 'Miles below which short distance multiplier applies',
+      isActive: true,
+    },
+    {
+      category: 'PRICING',
+      key: 'SHORT_DISTANCE_MULTIPLIER',
+      value: '2',
+      dataType: 'NUMBER',
+      description: 'Multiplier for per-mile rate on short distance trips',
+      isActive: true,
+    },
 
     // ===== BIDDING - Additional Settings =====
     {
