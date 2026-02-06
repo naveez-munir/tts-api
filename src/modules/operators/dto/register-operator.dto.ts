@@ -9,6 +9,7 @@ export const RegisterOperatorSchema = z.object({
   vehicleTypes: z.array(VehicleTypeSchema).min(1, 'At least one vehicle type required'),
   // Operator compliance fields (per data.md requirements)
   operatingLicenseNumber: z.string().optional(),
+  companyRegistrationCertificateUrl: z.string().optional(),
   councilRegistration: z.string().optional(),
   businessAddress: z.string().optional(),
   businessPostcode: z.string().optional(),

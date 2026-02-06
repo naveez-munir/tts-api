@@ -398,5 +398,31 @@ export class AdminController {
     const data = await this.adminService.updateVehicleCapacity(vehicleType, dto);
     return { success: true, data };
   }
+
+  @Get('drivers/pending')
+  async getPendingDrivers() {
+    const drivers = await this.adminService.getPendingDrivers();
+    return { success: true, data: drivers };
+  }
+
+  @Patch('drivers/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approveDriver(@Param('id') id: string) {
+    const driver = await this.adminService.approveDriver(id);
+    return { success: true, data: driver, message: 'Driver approved successfully' };
+  }
+
+  @Get('vehicles/pending')
+  async getPendingVehicles() {
+    const vehicles = await this.adminService.getPendingVehicles();
+    return { success: true, data: vehicles };
+  }
+
+  @Patch('vehicles/:id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approveVehicle(@Param('id') id: string) {
+    const vehicle = await this.adminService.approveVehicle(id);
+    return { success: true, data: vehicle, message: 'Vehicle approved successfully' };
+  }
 }
 

@@ -1399,13 +1399,13 @@ export class BookingsService {
   private generateBookingReference(): string {
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 8).toUpperCase();
-    return `TTS-${timestamp}${random}`;
+    return `TTSG-${timestamp}${random}`;
   }
 
   private generateGroupReference(): string {
     const timestamp = Date.now().toString(36).toUpperCase();
     const random = Math.random().toString(36).substring(2, 6).toUpperCase();
-    return `TTS-GRP-${timestamp}${random}`;
+    return `TTSG-GRP-${timestamp}${random}`;
   }
 }
 

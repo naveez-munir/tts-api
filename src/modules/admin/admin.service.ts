@@ -6,6 +6,7 @@ import { BiddingQueueService } from '../../queue/bidding-queue.service.js';
 import { S3Service } from '../../integrations/s3/s3.service.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import { PayoutsService } from '../payouts/payouts.service.js';
+import { OperatorsService } from '../operators/operators.service.js';
 import {
   JobStatus,
   BidStatus,
@@ -37,6 +38,7 @@ export class AdminService {
     private readonly s3Service: S3Service,
     private readonly notificationsService: NotificationsService,
     private readonly payoutsService: PayoutsService,
+    private readonly operatorsService: OperatorsService,
   ) {}
 
   // =========================================================================
@@ -2444,6 +2446,68 @@ export class AdminService {
       message: 'Job completion rejected - status reverted to IN_PROGRESS',
       reason: reason || null,
     };
+  }
+
+  async getPendingDrivers() {
+    return this.operatorsService.getDrivers(undefined, { isApproved: false });
+  }
+
+  async approveDriver(driverId: string) {
+    const driver = await this.prisma.driver.findUnique({
+      where: { id: driverId },
+      include: {
+        operator: true,
+      },
+    });
+
+    if (!driver) {
+      throw new NotFoundException('Driver not found');
+    }
+
+    if (driver.operator.approvalStatus !== 'APPROVED') {
+      throw new BadRequestException('Cannot approve driver. Operator must be approved first.');
+    }
+
+    const updated = await this.prisma.driver.update({
+      where: { id: driverId },
+      data: {
+        isApproved: true,
+        isActive: true,
+      },
+    });
+
+    return updated;
+  }
+
+  async getPendingVehicles() {
+    return this.operatorsService.getVehicles(undefined, { isApproved: false });
+  }
+
+  async approveVehicle(vehicleId: string) {
+    const vehicle = await this.prisma.vehicle.findUnique({
+      where: { id: vehicleId },
+      include: {
+        operator: true,
+      },
+    });
+
+    if (!vehicle) {
+      throw new NotFoundException('Vehicle not found');
+    }
+
+    if (vehicle.operator.approvalStatus !== 'APPROVED') {
+      throw new BadRequestException('Cannot approve vehicle. Operator must be approved first.');
+    }
+
+    const updated = await this.prisma.vehicle.update({
+      where: { id: vehicleId },
+      data: {
+        isApproved: true,
+        isActive: true,
+      },
+    });
+
+    return updated;
   }
 }
 

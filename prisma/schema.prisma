@@ -50,6 +50,7 @@ model OperatorProfile {
   emergencyContactPhone  String?
   fleetSize              Int?
   operatingLicenseNumber String?
+  companyRegistrationCertificateUrl String?
   vehicleTypes           VehicleType[]
   bids                   Bid[]
   documents              Document[]
@@ -79,6 +80,7 @@ model Vehicle {
   insuranceDocumentUrl  String?
   insuranceExpiryDate   DateTime?
   hirePermissionLetterUrl String?
+  isApproved            Boolean         @default(false)
   isActive              Boolean         @default(true)
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
@@ -138,6 +140,7 @@ model Driver {
   issuingCouncil          String?
   badgeNumber             String?
   vehicleId               String?         @unique
+  isApproved              Boolean         @default(false)
   isActive                Boolean         @default(true)
   createdAt               DateTime        @default(now())
   updatedAt               DateTime        @updatedAt
@@ -573,6 +576,7 @@ enum PayoutStatus {
 enum DocumentType {
   OPERATING_LICENSE
   INSURANCE
+  COMPANY_REGISTRATION
   OTHER
 }
 

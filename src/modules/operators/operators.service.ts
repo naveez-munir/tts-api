@@ -39,10 +39,9 @@ export class OperatorsService {
         registrationNumber: registerOperatorDto.registrationNumber,
         vatNumber: registerOperatorDto.vatNumber || null,
         approvalStatus: OperatorApprovalStatus.PENDING,
-        // Vehicle types operator can service (declaration-based for fast onboarding)
         vehicleTypes: registerOperatorDto.vehicleTypes || [],
-        // Operator compliance fields (per data.md requirements)
         operatingLicenseNumber: registerOperatorDto.operatingLicenseNumber || null,
+        companyRegistrationCertificateUrl: registerOperatorDto.companyRegistrationCertificateUrl || null,
         councilRegistration: registerOperatorDto.councilRegistration || null,
         businessAddress: registerOperatorDto.businessAddress || null,
         businessPostcode: registerOperatorDto.businessPostcode || null,
@@ -254,6 +253,7 @@ export class OperatorsService {
         companyName: dto.companyName,
         vatNumber: dto.vatNumber,
         operatingLicenseNumber: dto.operatingLicenseNumber,
+        companyRegistrationCertificateUrl: dto.companyRegistrationCertificateUrl,
         councilRegistration: dto.councilRegistration,
         businessAddress: dto.businessAddress,
         businessPostcode: dto.businessPostcode,
@@ -685,19 +685,38 @@ export class OperatorsService {
     return result;
   }
 
-  async getVehicles(userId: string) {
-    const profile = await this.prisma.operatorProfile.findUnique({
-      where: { userId },
-    });
+  async getVehicles(userId?: string, filters?: { isApproved?: boolean; operatorId?: string }) {
+    let operatorId: string | undefined;
 
-    if (!profile) {
-      throw new NotFoundException('Operator profile not found');
+    if (userId) {
+      const profile = await this.prisma.operatorProfile.findUnique({
+        where: { userId },
+      });
+
+      if (!profile) {
+        throw new NotFoundException('Operator profile not found');
+      }
+      operatorId = profile.id;
+    } else if (filters?.operatorId) {
+      operatorId = filters.operatorId;
     }
 
+    const where: any = {};
+    if (operatorId) where.operatorId = operatorId;
+    if (filters?.isApproved !== undefined) where.isApproved = filters.isApproved;
+
     const vehicles = await this.prisma.vehicle.findMany({
-      where: { operatorId: profile.id },
+      where,
       orderBy: { createdAt: 'desc' },
-      include: { photos: true },
+      include: {
+        photos: true,
+        operator: {
+          select: {
+            id: true,
+            companyName: true,
+          },
+        },
+      },
     });
 
     return Promise.all(
@@ -808,6 +827,8 @@ export class OperatorsService {
           insuranceDocumentUrl: dto.insuranceDocumentUrl,
           insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : null,
           hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
+          isApproved: false,
+          isActive: false,
         },
         include: { driver: true }
       });
@@ -928,21 +949,38 @@ export class OperatorsService {
     });
   }
 
-  async getDrivers(userId: string) {
-    const profile = await this.prisma.operatorProfile.findUnique({
-      where: { userId },
-    });
+  async getDrivers(userId?: string, filters?: { isApproved?: boolean; operatorId?: string }) {
+    let operatorId: string | undefined;
 
-    if (!profile) {
-      throw new NotFoundException('Operator profile not found');
+    if (userId) {
+      const profile = await this.prisma.operatorProfile.findUnique({
+        where: { userId },
+      });
+
+      if (!profile) {
+        throw new NotFoundException('Operator profile not found');
+      }
+      operatorId = profile.id;
+    } else if (filters?.operatorId) {
+      operatorId = filters.operatorId;
     }
 
+    const where: any = {};
+    if (operatorId) where.operatorId = operatorId;
+    if (filters?.isApproved !== undefined) where.isApproved = filters.isApproved;
+
     const drivers = await this.prisma.driver.findMany({
-      where: { operatorId: profile.id },
-      include: { 
+      where,
+      include: {
         vehicle: {
           include: { photos: true }
-        }
+        },
+        operator: {
+          select: {
+            id: true,
+            companyName: true,
+          },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -1067,6 +1105,8 @@ export class OperatorsService {
         phvLicenseExpiry: dto.phvLicenseExpiry ? new Date(dto.phvLicenseExpiry) : null,
         issuingCouncil: dto.issuingCouncil,
         badgeNumber: dto.badgeNumber,
+        isApproved: false,
+        isActive: false,
       },
     });
   }

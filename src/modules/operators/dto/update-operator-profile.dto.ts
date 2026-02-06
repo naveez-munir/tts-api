@@ -5,6 +5,7 @@ export const UpdateOperatorProfileSchema = z.object({
   companyName: z.string().min(1).optional(),
   vatNumber: z.string().optional(),
   operatingLicenseNumber: z.string().optional(),
+  companyRegistrationCertificateUrl: z.string().optional(),
   councilRegistration: z.string().optional(),
   businessAddress: z.string().optional(),
   businessPostcode: z.string().optional(),
