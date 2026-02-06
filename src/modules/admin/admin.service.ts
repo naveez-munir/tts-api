@@ -222,10 +222,15 @@ export class AdminService {
 
     // === PROCESS PENDING PAYOUTS FROM FORECAST ===
     const pendingPayoutsByOperator = payoutsForecast.map((op: any) => {
-      const allJobs = [...op.jobs.eligible, ...op.jobs.pending, ...op.jobs.heldBack];
-      const earliestJobDate = allJobs.length > 0
-        ? allJobs.sort((a: any, b: any) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime())[0].completedAt
-        : null;
+      let earliestDueDate = null;
+
+      if (op.jobs.eligible.length > 0) {
+        const earliestEligible = op.jobs.eligible[0];
+        earliestDueDate = earliestEligible.completedAt;
+      } else if (op.jobs.pending.length > 0) {
+        const earliestPending = op.jobs.pending[0];
+        earliestDueDate = earliestPending.eligibleDate;
+      }
 
       return {
         operatorId: op.operatorId,
@@ -238,7 +243,7 @@ export class AdminService {
         eligibleJobCount: op.summary.eligibleJobCount,
         pendingJobCount: op.summary.pendingJobCount,
         heldBackJobCount: op.summary.heldBackJobCount,
-        dueDate: earliestJobDate,
+        dueDate: earliestDueDate,
       };
     }).sort((a: any, b: any) => b.totalDue - a.totalDue);
 

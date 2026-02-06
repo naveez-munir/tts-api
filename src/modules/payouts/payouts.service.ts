@@ -468,7 +468,13 @@ export class PayoutsService {
         }
 
         if (job.completedAt && job.completedAt <= eligibilityCutoff) {
-          eligibleJobs.push(jobData);
+          const eligibleDate = new Date(job.completedAt);
+          eligibleDate.setDate(eligibleDate.getDate() + settings.initialDelayDays);
+
+          eligibleJobs.push({
+            ...jobData,
+            eligibleDate,
+          });
         } else if (job.completedAt) {
           const eligibleDate = new Date(job.completedAt);
           eligibleDate.setDate(eligibleDate.getDate() + settings.initialDelayDays);
@@ -488,10 +494,12 @@ export class PayoutsService {
       const totalPending = pendingJobs.reduce((sum, j) => sum + j.bidAmount, 0);
       const totalHeldBack = heldBackJobs.reduce((sum, j) => sum + j.bidAmount, 0);
 
-      const allJobsSorted = [...eligibleJobs, ...pendingJobs, ...heldBackJobs].sort(
-        (a: any, b: any) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
-      );
-      const earliestJobDate = allJobsSorted.length > 0 ? allJobsSorted[0].completedAt : null;
+      let earliestJobDate = null;
+      if (eligibleJobs.length > 0) {
+        earliestJobDate = eligibleJobs[0].eligibleDate;
+      } else if (pendingJobs.length > 0) {
+        earliestJobDate = pendingJobs[0].eligibleDate;
+      }
 
       forecast.push({
         operatorId: operator.id,
