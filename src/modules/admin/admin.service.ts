@@ -221,18 +221,26 @@ export class AdminService {
       .sort((a, b) => a.date.localeCompare(b.date));
 
     // === PROCESS PENDING PAYOUTS FROM FORECAST ===
-    const pendingPayoutsByOperator = payoutsForecast.map((op: any) => ({
-      operatorId: op.operatorId,
-      companyName: op.companyName,
-      totalDue: op.summary.totalAmount,
-      totalEligible: op.summary.totalEligible,
-      totalPending: op.summary.totalPending,
-      totalHeldBack: op.summary.totalHeldBack,
-      jobCount: op.summary.totalJobCount,
-      eligibleJobCount: op.summary.eligibleJobCount,
-      pendingJobCount: op.summary.pendingJobCount,
-      heldBackJobCount: op.summary.heldBackJobCount,
-    })).sort((a: any, b: any) => b.totalDue - a.totalDue);
+    const pendingPayoutsByOperator = payoutsForecast.map((op: any) => {
+      const allJobs = [...op.jobs.eligible, ...op.jobs.pending, ...op.jobs.heldBack];
+      const earliestJobDate = allJobs.length > 0
+        ? allJobs.sort((a: any, b: any) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime())[0].completedAt
+        : null;
+
+      return {
+        operatorId: op.operatorId,
+        companyName: op.companyName,
+        totalDue: op.summary.totalAmount,
+        totalEligible: op.summary.totalEligible,
+        totalPending: op.summary.totalPending,
+        totalHeldBack: op.summary.totalHeldBack,
+        jobCount: op.summary.totalJobCount,
+        eligibleJobCount: op.summary.eligibleJobCount,
+        pendingJobCount: op.summary.pendingJobCount,
+        heldBackJobCount: op.summary.heldBackJobCount,
+        dueDate: earliestJobDate,
+      };
+    }).sort((a: any, b: any) => b.totalDue - a.totalDue);
 
     const totalPendingPayoutsJobCount = pendingPayoutsByOperator.reduce((sum: number, op: any) => sum + op.jobCount, 0);
 

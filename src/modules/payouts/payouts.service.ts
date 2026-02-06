@@ -462,23 +462,36 @@ export class PayoutsService {
           completedAt: job.completedAt!,
         };
 
-        // Check if held back
         if (heldBackIds.has(job.id)) {
           heldBackJobs.push(jobData);
           continue;
         }
 
-        // Check if meets 14-day eligibility
         if (job.completedAt && job.completedAt <= eligibilityCutoff) {
           eligibleJobs.push(jobData);
-        } else {
-          pendingJobs.push(jobData);
+        } else if (job.completedAt) {
+          const eligibleDate = new Date(job.completedAt);
+          eligibleDate.setDate(eligibleDate.getDate() + settings.initialDelayDays);
+          const daysRemaining = Math.ceil(
+            (eligibleDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)
+          );
+
+          pendingJobs.push({
+            ...jobData,
+            eligibleDate,
+            daysRemaining,
+          });
         }
       }
 
       const totalEligible = eligibleJobs.reduce((sum, j) => sum + j.bidAmount, 0);
       const totalPending = pendingJobs.reduce((sum, j) => sum + j.bidAmount, 0);
       const totalHeldBack = heldBackJobs.reduce((sum, j) => sum + j.bidAmount, 0);
+
+      const allJobsSorted = [...eligibleJobs, ...pendingJobs, ...heldBackJobs].sort(
+        (a: any, b: any) => new Date(a.completedAt).getTime() - new Date(b.completedAt).getTime()
+      );
+      const earliestJobDate = allJobsSorted.length > 0 ? allJobsSorted[0].completedAt : null;
 
       forecast.push({
         operatorId: operator.id,
@@ -496,6 +509,7 @@ export class PayoutsService {
           heldBackJobCount: heldBackJobs.length,
           totalAmount: totalEligible + totalPending + totalHeldBack,
           totalJobCount: allJobs.length,
+          earliestJobDate,
         },
         jobs: {
           eligible: eligibleJobs,
