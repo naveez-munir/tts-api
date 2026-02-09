@@ -1,7 +1,7 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../database/prisma.service.js';
-import type { User } from '@prisma/client';
+import type { User, UserRole } from '@prisma/client';
 
 @Injectable()
 export class UsersService {
@@ -25,7 +25,7 @@ export class UsersService {
     firstName: string;
     lastName: string;
     phoneNumber?: string;
-    role: 'CUSTOMER' | 'OPERATOR' | 'ADMIN';
+    role: UserRole;
   }): Promise<User> {
     if (data.phoneNumber) {
       const existingUserWithPhone = await this.prisma.user.findFirst({

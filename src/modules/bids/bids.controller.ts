@@ -89,7 +89,10 @@ export class BidsController {
     // Transform customerPrice to show operator's cut (not actual customer price)
     const transformedBids = bids.map((bid) => {
       if ((bid as any).job?.booking?.customerPrice) {
-        const actualCustomerPrice = Number((bid as any).job.booking.customerPrice);
+        const customerPriceDecimal = (bid as any).job.booking.customerPrice;
+        const actualCustomerPrice = typeof customerPriceDecimal === 'object' && 'toNumber' in customerPriceDecimal
+          ? customerPriceDecimal.toNumber()
+          : Number(customerPriceDecimal);
         const operatorPrice = (actualCustomerPrice * maxBidPercent) / 100;
 
         return {
