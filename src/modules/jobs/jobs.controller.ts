@@ -147,21 +147,20 @@ export class JobsController {
       });
     }
 
-    // Transform jobs for operator view: calculate maxBidAmount and remove customerPrice
+    // Transform jobs for operator view: replace customerPrice with maxBidAmount
     const transformedJobs = jobs.map((job) => {
       const customerPriceDecimal = job.booking.customerPrice;
-      const customerPrice = typeof customerPriceDecimal === 'object' && 'toNumber' in customerPriceDecimal
+      const actualCustomerPrice = typeof customerPriceDecimal === 'object' && 'toNumber' in customerPriceDecimal
         ? customerPriceDecimal.toNumber()
         : Number(customerPriceDecimal);
-      const maxBidAmount = (customerPrice * maxBidPercent) / 100;
-
-      // Remove customerPrice from booking and add maxBidAmount to job
-      const { customerPrice: _removed, ...bookingWithoutPrice } = job.booking;
+      const maxBidAmount = (actualCustomerPrice * maxBidPercent) / 100;
 
       return {
         ...job,
-        maxBidAmount: maxBidAmount,
-        booking: bookingWithoutPrice,
+        booking: {
+          ...job.booking,
+          customerPrice: maxBidAmount,
+        },
       };
     });
 
