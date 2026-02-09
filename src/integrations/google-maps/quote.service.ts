@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service.js';
 import { GoogleMapsService, WaypointLocation } from './google-maps.service.js';
 import type { DistanceResult } from './google-maps.service.js';
-import { VehicleType, ServiceType } from '@prisma/client';
+import { VehicleType, ServiceType, BookingStatus } from '@prisma/client';
 import { Decimal } from '@prisma/client/runtime/library';
 import { SystemSettingsService } from '../../modules/system-settings/system-settings.service.js';
 
@@ -27,6 +27,7 @@ export interface SingleJourneyQuoteRequest {
   childSeats?: number;
   boosterSeats?: number;
   stops?: StopPoint[];
+  customerId?: string;
 }
 
 // Return journey quote request
@@ -50,6 +51,7 @@ export interface AllVehiclesQuoteRequest {
   stops?: StopPoint[];
   passengers: number;
   luggage: number;
+  customerId?: string;
 }
 
 export interface VehicleQuoteItem {
@@ -57,6 +59,7 @@ export interface VehicleQuoteItem {
   label: string;
   canAccommodate: boolean;
   totalPrice: number;
+  originalPrice?: number;
   baseFare: number;
   distanceCharge: number;
   timeSurcharge: number;
@@ -68,6 +71,9 @@ export interface VehicleQuoteItem {
   outboundPrice?: number;
   returnPrice?: number;
   discountAmount?: number;
+  firstTimeDiscount?: number;
+  firstTimeDiscountPercent?: number;
+  isFirstTimeBooking?: boolean;
 }
 
 export interface AllVehiclesQuoteResponse {
@@ -91,6 +97,10 @@ export interface SingleJourneyQuote {
   boosterSeatsFee: number;
   airportFee: number;
   totalPrice: number;
+  originalPrice?: number;
+  firstTimeDiscount?: number;
+  firstTimeDiscountPercent?: number;
+  isFirstTimeBooking?: boolean;
   distance: DistanceResult | null;
   breakdown: QuoteBreakdown;
 }
@@ -491,6 +501,20 @@ export class QuoteService {
     return Math.round(value * 100) / 100;
   }
 
+  private async getFirstTimeDiscountPercent(customerId?: string): Promise<number> {
+    if (!customerId) {
+      return await this.systemSettingsService.getSettingOrDefault('NEW_BOOKING_DISCOUNT_PERCENT', 10);
+    }
+    const existingBookings = await this.prisma.booking.count({
+      where: {
+        customerId,
+        status: { in: [BookingStatus.COMPLETED, BookingStatus.PAID, BookingStatus.ASSIGNED] },
+      },
+    });
+    if (existingBookings > 0) return 0;
+    return await this.systemSettingsService.getSettingOrDefault('NEW_BOOKING_DISCOUNT_PERCENT', 10);
+  }
+
   /**
    * Calculate quote for a single journey (one-way)
    */
@@ -540,8 +564,12 @@ export class QuoteService {
     // Airport fee
     const airportFee = await this.getAirportFee(request.serviceType, pricingRules);
 
-    const totalPrice = baseFare + distanceCharge + timeSurcharge + holidaySurcharge
+    const subtotal = baseFare + distanceCharge + timeSurcharge + holidaySurcharge
       + meetAndGreetFee + childSeatsFee + boosterSeatsFee + airportFee;
+
+    const firstTimeDiscountPercent = await this.getFirstTimeDiscountPercent(request.customerId);
+    const firstTimeDiscount = this.round(subtotal * (firstTimeDiscountPercent / 100));
+    const totalPrice = this.round(subtotal - firstTimeDiscount);
 
     return {
       baseFare: this.round(baseFare),
@@ -552,7 +580,13 @@ export class QuoteService {
       childSeatsFee: this.round(childSeatsFee),
       boosterSeatsFee: this.round(boosterSeatsFee),
       airportFee: this.round(airportFee),
-      totalPrice: this.round(totalPrice),
+      totalPrice,
+      ...(firstTimeDiscountPercent > 0 && {
+        originalPrice: this.round(subtotal),
+        firstTimeDiscount,
+        firstTimeDiscountPercent,
+        isFirstTimeBooking: true,
+      }),
       distance,
       breakdown: {
         baseFare: `£${this.round(baseFare).toFixed(2)}`,
@@ -566,8 +600,8 @@ export class QuoteService {
         boosterSeatsFee: `£${this.round(boosterSeatsFee).toFixed(2)}`,
         airportFee: `£${this.round(airportFee).toFixed(2)}`,
         returnDiscountPercent: '0%',
-        subtotal: `£${this.round(totalPrice).toFixed(2)}`,
-        total: `£${this.round(totalPrice).toFixed(2)}`,
+        subtotal: `£${this.round(subtotal).toFixed(2)}`,
+        total: `£${totalPrice.toFixed(2)}`,
       },
     };
   }
@@ -622,6 +656,8 @@ export class QuoteService {
       where: { isActive: true },
     });
 
+    const firstTimeDiscountPercent = await this.getFirstTimeDiscountPercent(request.customerId);
+
     const vehicleQuotes = await Promise.all(
       vehicleCapacities.map(async (vehicle) => {
         const canAccommodate =
@@ -654,7 +690,9 @@ export class QuoteService {
           const subtotal = outboundQuote.totalPrice + returnQuote.totalPrice;
           const discountPercent = await this.getReturnDiscountPercent(pricingRules);
           const discountAmount = this.round(subtotal * (discountPercent / 100));
-          const totalPrice = this.round(subtotal - discountAmount);
+          const afterReturnDiscount = this.round(subtotal - discountAmount);
+          const firstTimeDiscountAmount = this.round(afterReturnDiscount * (firstTimeDiscountPercent / 100));
+          const totalPrice = this.round(afterReturnDiscount - firstTimeDiscountAmount);
 
           return {
             vehicleType: vehicle.vehicleType,
@@ -672,6 +710,12 @@ export class QuoteService {
             outboundPrice: outboundQuote.totalPrice,
             returnPrice: returnQuote.totalPrice,
             discountAmount,
+            ...(firstTimeDiscountPercent > 0 && {
+              originalPrice: this.round(subtotal),
+              firstTimeDiscount: firstTimeDiscountAmount,
+              firstTimeDiscountPercent,
+              isFirstTimeBooking: true,
+            }),
           };
         } else {
           const quote = await this.calculateSingleQuoteWithDistance({
@@ -683,11 +727,14 @@ export class QuoteService {
             boosterSeats: request.boosterSeats,
           }, distance, pricingRules);
 
+          const firstTimeDiscountAmount = this.round(quote.totalPrice * (firstTimeDiscountPercent / 100));
+          const totalPrice = this.round(quote.totalPrice - firstTimeDiscountAmount);
+
           return {
             vehicleType: vehicle.vehicleType,
             label: this.getVehicleLabel(vehicle.vehicleType),
             canAccommodate: true,
-            totalPrice: quote.totalPrice,
+            totalPrice,
             baseFare: quote.baseFare,
             distanceCharge: quote.distanceCharge,
             timeSurcharge: quote.timeSurcharge,
@@ -696,6 +743,12 @@ export class QuoteService {
             childSeatsFee: quote.childSeatsFee,
             boosterSeatsFee: quote.boosterSeatsFee,
             airportFee: quote.airportFee,
+            ...(firstTimeDiscountPercent > 0 && {
+              originalPrice: this.round(quote.totalPrice),
+              firstTimeDiscount: firstTimeDiscountAmount,
+              firstTimeDiscountPercent,
+              isFirstTimeBooking: true,
+            }),
           };
         }
       })
