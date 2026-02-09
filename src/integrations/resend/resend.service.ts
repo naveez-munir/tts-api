@@ -757,7 +757,7 @@ export class ResendService {
 
             <a href="https://x.com/TTS_Group"
               style="display: inline-block; margin: 0 8px;">
-              <img src="https://cdn-icons-png.flaticon.com/512/733/733579.png"
+              <img src="https://cdn-icons-png.flaticon.com/512/5969/5969020.png"
                   width="18" height="18" alt="X"
                   style="display: block; border: 0;">
             </a>

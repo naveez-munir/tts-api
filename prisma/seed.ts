@@ -733,6 +733,14 @@ async function main(): Promise<void> {
       description: 'Minimum bid as percentage of customer price (prevents unrealistic bids)',
       isActive: true,
     },
+    {
+      category: 'BIDDING',
+      key: 'MAX_BID_PERCENT',
+      value: '75',
+      dataType: 'NUMBER',
+      description: 'Maximum bid as percentage of customer price (platform margin cut)',
+      isActive: true,
+    },
 
     // ===== PAYOUTS =====
     {

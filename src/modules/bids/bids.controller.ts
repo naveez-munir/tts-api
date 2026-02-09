@@ -16,6 +16,7 @@ import { BidsService } from './bids.service.js';
 import { CreateBidSchema } from './dto/create-bid.dto.js';
 import type { CreateBidDto } from './dto/create-bid.dto.js';
 import { PrismaService } from '../../database/prisma.service.js';
+import { SystemSettingsService } from '../system-settings/system-settings.service.js';
 
 @Controller('bids')
 @UseGuards(JwtAuthGuard)
@@ -23,6 +24,7 @@ export class BidsController {
   constructor(
     private readonly bidsService: BidsService,
     private readonly prisma: PrismaService,
+    private readonly systemSettingsService: SystemSettingsService,
   ) {}
 
   @Post()
@@ -77,12 +79,37 @@ export class BidsController {
       throw new NotFoundException('Operator profile not found');
     }
 
+    const maxBidPercent = await this.systemSettingsService.getSettingOrDefault(
+      'MAX_BID_PERCENT',
+      75,
+    );
+
     const bids = await this.bidsService.findOperatorBids(profile.id);
+
+    // Transform customerPrice to show operator's cut (not actual customer price)
+    const transformedBids = bids.map((bid) => {
+      if ((bid as any).job?.booking?.customerPrice) {
+        const actualCustomerPrice = Number((bid as any).job.booking.customerPrice);
+        const operatorPrice = (actualCustomerPrice * maxBidPercent) / 100;
+
+        return {
+          ...bid,
+          job: {
+            ...(bid as any).job,
+            booking: {
+              ...(bid as any).job.booking,
+              customerPrice: operatorPrice,
+            },
+          },
+        };
+      }
+      return bid;
+    });
 
     return {
       success: true,
-      data: bids,
-      meta: { total: bids.length },
+      data: transformedBids,
+      meta: { total: transformedBids.length },
     };
   }
 

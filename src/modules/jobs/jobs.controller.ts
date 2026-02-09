@@ -69,10 +69,14 @@ export class JobsController {
       throw new NotFoundException('Operator profile not found');
     }
 
-    // Get postcode filtering configuration
+    // Get system settings
     const enablePostcodeFiltering = await this.systemSettingsService.getSettingOrDefault(
       'ENABLE_POSTCODE_FILTERING',
       true,
+    );
+    const maxBidPercent = await this.systemSettingsService.getSettingOrDefault(
+      'MAX_BID_PERCENT',
+      75,
     );
 
     const now = new Date();
@@ -143,10 +147,25 @@ export class JobsController {
       });
     }
 
+    // Transform jobs for operator view: calculate maxBidAmount and remove customerPrice
+    const transformedJobs = jobs.map((job) => {
+      const customerPrice = Number(job.booking.customerPrice);
+      const maxBidAmount = (customerPrice * maxBidPercent) / 100;
+
+      // Remove customerPrice from booking and add maxBidAmount to job
+      const { customerPrice: _removed, ...bookingWithoutPrice } = job.booking;
+
+      return {
+        ...job,
+        maxBidAmount: maxBidAmount,
+        booking: bookingWithoutPrice,
+      };
+    });
+
     return {
       success: true,
-      data: jobs,
-      meta: { total: jobs.length },
+      data: transformedJobs,
+      meta: { total: transformedJobs.length },
     };
   }
 
@@ -163,6 +182,11 @@ export class JobsController {
     if (!profile) {
       throw new NotFoundException('Operator profile not found');
     }
+
+    const maxBidPercent = await this.systemSettingsService.getSettingOrDefault(
+      'MAX_BID_PERCENT',
+      75,
+    );
 
     const jobs = await this.prisma.job.findMany({
       where: {
@@ -193,10 +217,24 @@ export class JobsController {
       orderBy: { createdAt: 'desc' },
     });
 
+    // Transform customerPrice to show operator's cut (not actual customer price)
+    const transformedJobs = jobs.map((job) => {
+      const actualCustomerPrice = Number(job.booking.customerPrice);
+      const operatorPrice = (actualCustomerPrice * maxBidPercent) / 100;
+
+      return {
+        ...job,
+        booking: {
+          ...job.booking,
+          customerPrice: operatorPrice,
+        },
+      };
+    });
+
     return {
       success: true,
-      data: jobs,
-      meta: { total: jobs.length },
+      data: transformedJobs,
+      meta: { total: transformedJobs.length },
     };
   }
 
