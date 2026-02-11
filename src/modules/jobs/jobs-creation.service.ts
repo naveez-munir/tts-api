@@ -104,6 +104,12 @@ export class JobsCreationService {
 
     const operatorIds = operators.map((o) => o.id);
 
+    const maxBidPercent = await this.systemSettingsService.getSettingOrDefault(
+      'MAX_BID_PERCENT',
+      75,
+    );
+    const maxBidAmount = ((Number(booking.customerPrice) * maxBidPercent) / 100).toFixed(2);
+
     await this.notificationsService.broadcastNewJob({
       jobId,
       pickupAddress: booking.pickupAddress,
@@ -112,7 +118,7 @@ export class JobsCreationService {
       dropoffPostcode: booking.dropoffPostcode || 'N/A',
       pickupDatetime: booking.pickupDatetime,
       vehicleType: booking.vehicleType,
-      maxBidAmount: booking.customerPrice.toString(),
+      maxBidAmount,
       operatorIds,
       stops: booking.stops?.map((s: { address: string; postcode: string | null }) => ({
         address: s.address,

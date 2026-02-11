@@ -121,8 +121,25 @@ export class BidsController {
   // ============================================================================
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@CurrentUser() user: any, @Param('id') id: string) {
     const bid = await this.bidsService.findOne(id);
+
+    const bidData = bid as any;
+    if (user.role === 'OPERATOR' && bidData?.job?.booking?.customerPrice != null) {
+      const maxBidPercent = await this.systemSettingsService.getSettingOrDefault('MAX_BID_PERCENT', 75);
+      const maxBidAmount = (Number(bidData.job.booking.customerPrice) * maxBidPercent) / 100;
+      return {
+        success: true,
+        data: {
+          ...bidData,
+          job: {
+            ...bidData.job,
+            booking: { ...bidData.job.booking, customerPrice: maxBidAmount },
+          },
+        },
+      };
+    }
+
     return {
       success: true,
       data: bid,

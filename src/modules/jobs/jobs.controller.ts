@@ -244,8 +244,19 @@ export class JobsController {
   }
 
   @Get('available/:postcode')
-  async findAvailableJobs(@Param('postcode') postcode: string) {
+  async findAvailableJobs(@CurrentUser() user: any, @Param('postcode') postcode: string) {
     const jobs = await this.jobsService.findAvailableJobs(postcode);
+
+    if (user.role === 'OPERATOR') {
+      const maxBidPercent = await this.systemSettingsService.getSettingOrDefault('MAX_BID_PERCENT', 75);
+      const maskedJobs = (jobs as any[]).map((job) => {
+        if (job?.booking?.customerPrice == null) return job;
+        const maxBidAmount = (Number(job.booking.customerPrice) * maxBidPercent) / 100;
+        return { ...job, booking: { ...job.booking, customerPrice: maxBidAmount } };
+      });
+      return { success: true, data: maskedJobs, meta: { total: maskedJobs.length } };
+    }
+
     return {
       success: true,
       data: jobs,
@@ -260,8 +271,22 @@ export class JobsController {
   // ============================================================================
 
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(@CurrentUser() user: any, @Param('id') id: string) {
     const job = await this.jobsService.findOne(id);
+
+    const jobData = job as any;
+    if (user.role === 'OPERATOR' && jobData?.booking?.customerPrice != null) {
+      const maxBidPercent = await this.systemSettingsService.getSettingOrDefault('MAX_BID_PERCENT', 75);
+      const maxBidAmount = (Number(jobData.booking.customerPrice) * maxBidPercent) / 100;
+      return {
+        success: true,
+        data: {
+          ...jobData,
+          booking: { ...jobData.booking, customerPrice: maxBidAmount },
+        },
+      };
+    }
+
     return {
       success: true,
       data: job,
@@ -400,9 +425,17 @@ export class JobsController {
       this.logger.error(`Failed to send driver assignment notification for booking ${job.booking.bookingReference}:`, error);
     }
 
+    const maxBidPercent = await this.systemSettingsService.getSettingOrDefault('MAX_BID_PERCENT', 75);
+    const updatedJobData = updatedJob as any;
+    const maskedPrice = updatedJobData?.booking?.customerPrice != null
+      ? (Number(updatedJobData.booking.customerPrice) * maxBidPercent) / 100
+      : undefined;
+
     return {
       success: true,
-      data: updatedJob,
+      data: maskedPrice != null
+        ? { ...updatedJobData, booking: { ...updatedJobData.booking, customerPrice: maskedPrice } }
+        : updatedJob,
       message: 'Driver details submitted successfully',
     };
   }
