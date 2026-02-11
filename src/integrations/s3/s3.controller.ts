@@ -91,6 +91,7 @@ export class S3Controller {
     const documentTypeMap: Record<string, DocumentType> = {
       license: DocumentType.OPERATING_LICENSE,
       insurance: DocumentType.INSURANCE,
+      company_registration: DocumentType.COMPANY_REGISTRATION,
       other: DocumentType.OTHER,
     };
 

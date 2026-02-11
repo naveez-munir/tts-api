@@ -523,7 +523,14 @@ export class AdminService {
       if (!operator.bankSortCode) missingFields.push('bankSortCode');
       if (!operator.vehicleTypes || operator.vehicleTypes.length === 0) missingFields.push('vehicleTypes');
       if (!operator.serviceAreas || operator.serviceAreas.length === 0) missingFields.push('serviceAreas');
-      if (!operator.documents || operator.documents.length === 0) missingFields.push('documents');
+      if (!operator.documents || operator.documents.length === 0) {
+        missingFields.push('documents');
+      } else {
+        const docTypes = operator.documents.map((d) => d.documentType);
+        if (!docTypes.includes('OPERATING_LICENSE' as any)) missingFields.push('document: Operating License');
+        if (!docTypes.includes('INSURANCE' as any)) missingFields.push('document: Insurance');
+        if (!docTypes.includes('COMPANY_REGISTRATION' as any)) missingFields.push('document: Company Registration');
+      }
 
       if (missingFields.length > 0) {
         throw new BadRequestException(
@@ -2468,7 +2475,8 @@ export class AdminService {
   }
 
   async getPendingDrivers() {
-    return this.operatorsService.getDrivers(undefined, { isApproved: false });
+    const drivers = await this.operatorsService.getDrivers(undefined, { isApproved: false });
+    return drivers.filter((driver: any) => driver.vehicle !== null && driver.vehicle !== undefined);
   }
 
   async approveDriver(driverId: string) {

@@ -5,8 +5,8 @@ export const GenerateUploadUrlSchema = z.object({
   fileType: z.enum(['pdf', 'jpg', 'jpeg', 'png'], {
     message: 'File type must be pdf, jpg, jpeg, or png',
   }),
-  documentType: z.enum(['license', 'insurance', 'other'], {
-    message: 'Document type must be license, insurance, or other',
+  documentType: z.enum(['license', 'insurance', 'company_registration', 'other'], {
+    message: 'Document type must be license, insurance, company_registration, or other',
   }),
 });
 
@@ -14,7 +14,7 @@ export type GenerateUploadUrlDto = z.infer<typeof GenerateUploadUrlSchema>;
 
 export const ConfirmUploadSchema = z.object({
   key: z.string().min(1, 'S3 key is required'),
-  documentType: z.enum(['license', 'insurance', 'other']),
+  documentType: z.enum(['license', 'insurance', 'company_registration', 'other']),
   originalFileName: z.string().min(1, 'Original file name is required'),
   expiresAt: z
     .string()
