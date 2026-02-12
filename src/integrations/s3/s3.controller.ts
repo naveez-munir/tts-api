@@ -106,6 +106,12 @@ export class S3Controller {
       },
     });
 
+    // Reset approval status to PENDING so admin re-reviews the new document
+    await this.prisma.operatorProfile.update({
+      where: { id: operatorId },
+      data: { approvalStatus: 'PENDING' },
+    });
+
     return {
       success: true,
       data: {

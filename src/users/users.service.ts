@@ -60,6 +60,8 @@ export class UsersService {
       if (existingUserWithEmail) {
         throw new BadRequestException('Email already exists');
       }
+      // Reset email verification when email changes
+      data.isEmailVerified = false;
     }
 
     if (data.phoneNumber) {

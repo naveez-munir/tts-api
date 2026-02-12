@@ -20,6 +20,7 @@ export class UsersController {
       firstName: updateData.firstName,
       lastName: updateData.lastName,
       phoneNumber: updateData.phoneNumber,
+      email: updateData.email,
     });
 
     return {
@@ -30,6 +31,7 @@ export class UsersController {
         firstName: updatedUser.firstName,
         lastName: updatedUser.lastName,
         phoneNumber: updatedUser.phoneNumber,
+        isEmailVerified: updatedUser.isEmailVerified,
       },
     };
   }

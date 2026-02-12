@@ -393,6 +393,12 @@ export class OperatorsService {
       where: { id: documentId },
     });
 
+    // Reset approval status to PENDING so admin re-reviews after document removal
+    await this.prisma.operatorProfile.update({
+      where: { id: profile.id },
+      data: { approvalStatus: 'PENDING' },
+    });
+
     return { deleted: true, documentId };
   }
 
