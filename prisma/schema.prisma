@@ -8,22 +8,25 @@ datasource db {
 }
 
 model User {
-  id              String           @id @default(cuid())
-  email           String           @unique
-  password        String
-  firstName       String
-  lastName        String
-  phoneNumber     String?          @unique
-  role            UserRole
-  isEmailVerified Boolean          @default(false)
-  isActive        Boolean          @default(true)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
-  bookingGroups   BookingGroup[]
-  bookings        Booking[]
-  notifications   Notification[]
-  operatorProfile OperatorProfile?
-  otpTokens       OtpToken[]
+  id                 String           @id @default(cuid())
+  email              String           @unique
+  password           String
+  firstName          String
+  lastName           String
+  phoneNumber        String?          @unique
+  role               UserRole
+  isEmailVerified    Boolean          @default(false)
+  isActive           Boolean          @default(true)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  bookingGroups      BookingGroup[]
+  bookings           Booking[]
+  notifications      Notification[]
+  operatorProfile    OperatorProfile?
+  otpTokens          OtpToken[]
+  permissions        UserPermission[]
+  grantedPermissions UserPermission[] @relation("GrantedPermissions")
+  auditLogs          AuditLog[]
 
   @@map("users")
 }
@@ -481,10 +484,84 @@ model OtpToken {
   @@map("otp_tokens")
 }
 
+model UserPermission {
+  id         String               @id @default(cuid())
+  userId     String
+  permission ControllerPermission
+  grantedAt  DateTime             @default(now())
+  grantedBy  String
+
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  granter User @relation("GrantedPermissions", fields: [grantedBy], references: [id], onDelete: Restrict)
+
+  @@unique([userId, permission])
+  @@index([userId])
+  @@map("user_permissions")
+}
+
+model AuditLog {
+  id            String      @id @default(cuid())
+  userId        String
+  userEmail     String
+  userRole      UserRole
+  action        AuditAction
+  targetType    String
+  targetId      String
+  description   String
+  previousValue Json?
+  newValue      Json?
+  reason        String?
+  ipAddress     String?
+  userAgent     String?
+  createdAt     DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([action])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
 enum UserRole {
   CUSTOMER
   OPERATOR
   ADMIN
+  CONTROLLER
+}
+
+enum ControllerPermission {
+  OPERATOR_VIEW
+  OPERATOR_APPROVE
+  OPERATOR_REJECT
+  OPERATOR_SUSPEND
+
+  BOOKING_VIEW
+  BOOKING_REFUND
+
+  JOB_VIEW
+  JOB_ASSIGN
+  JOB_CLOSE_BIDDING
+  JOB_REOPEN_BIDDING
+  JOB_CONFIRM_COMPLETION
+
+  DRIVER_VIEW
+  DRIVER_APPROVE
+  DRIVER_REJECT
+
+  VEHICLE_VIEW
+  VEHICLE_APPROVE
+  VEHICLE_REJECT
+  VEHICLE_UPDATE_CAPACITY
+
+  DOCUMENT_VIEW
+  DOCUMENT_VERIFY
+
+  CUSTOMER_VIEW
+  CUSTOMER_VIEW_BOOKINGS
+  CUSTOMER_VIEW_TRANSACTIONS_LIMITED
+  CUSTOMER_UPDATE_STATUS
 }
 
 enum BookingStatus {
@@ -605,4 +682,35 @@ enum OperatorApprovalStatus {
 enum OtpType {
   PASSWORD_RESET
   EMAIL_VERIFICATION
+}
+
+enum AuditAction {
+  OPERATOR_APPROVED
+  OPERATOR_REJECTED
+  OPERATOR_SUSPENDED
+  OPERATOR_REINSTATED
+
+  BOOKING_VIEWED
+  BOOKING_REFUNDED
+
+  JOB_VIEWED
+  JOB_ASSIGNED
+  JOB_BIDDING_CLOSED
+  JOB_BIDDING_REOPENED
+  JOB_COMPLETION_CONFIRMED
+  JOB_COMPLETION_REJECTED
+
+  DRIVER_APPROVED
+  DRIVER_REJECTED
+
+  VEHICLE_APPROVED
+  VEHICLE_REJECTED
+
+  CUSTOMER_ACTIVATED
+  CUSTOMER_DEACTIVATED
+
+  CONTROLLER_CREATED
+  CONTROLLER_PERMISSIONS_UPDATED
+  CONTROLLER_ACTIVATED
+  CONTROLLER_DEACTIVATED
 }
