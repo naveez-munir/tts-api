@@ -910,6 +910,11 @@ export class OperatorsService {
 
     const isActiveChanging = dto.isActive !== undefined && dto.isActive !== vehicle.isActive;
 
+    // Block activation if vehicle is not approved
+    if (dto.isActive === true && !vehicle.isActive && !vehicle.isApproved) {
+      throw new BadRequestException('Vehicle must be approved before it can be activated');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const updatedVehicle = await tx.vehicle.update({
         where: { id: vehicleId },
@@ -1197,6 +1202,16 @@ export class OperatorsService {
     const isBeingDeactivated = dto.isActive === false && driver.isActive === true;
     const isBeingReactivated = dto.isActive === true && driver.isActive === false;
 
+    // Block activation if driver is not approved
+    if (isBeingReactivated && !driver.isApproved) {
+      throw new BadRequestException('Driver must be approved before it can be activated');
+    }
+
+    // Block activation if driver has no linked vehicle
+    if (isBeingReactivated && !driver.vehicleId) {
+      throw new BadRequestException('Driver must have a linked vehicle before it can be activated');
+    }
+
     return this.prisma.$transaction(async (tx) => {
       const updatedDriver = await tx.driver.update({
         where: { id: driverId },
@@ -1234,6 +1249,14 @@ export class OperatorsService {
 
       // If driver has a linked vehicle and active status changed, sync vehicle + fleetSize
       if (driver.vehicleId && (isBeingDeactivated || isBeingReactivated)) {
+        // When reactivating, verify the linked vehicle is also approved
+        if (isBeingReactivated) {
+          const linkedVehicle = await tx.vehicle.findUnique({ where: { id: driver.vehicleId } });
+          if (linkedVehicle && !linkedVehicle.isApproved) {
+            throw new BadRequestException('Linked vehicle must be approved before driver can be activated');
+          }
+        }
+
         // Deactivate/reactivate the linked vehicle along with the driver
         await tx.vehicle.update({
           where: { id: driver.vehicleId },
