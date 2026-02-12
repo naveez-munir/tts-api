@@ -1037,6 +1037,129 @@ export class NotificationsService {
   }
 
   // =========================================================================
+  // VEHICLE DOCUMENT EXPIRY NOTIFICATIONS
+  // =========================================================================
+
+  /**
+   * Send vehicle document expiry warning to operator
+   */
+  async sendVehicleDocumentExpiryWarning(
+    operatorId: string,
+    documentType: string,
+    expiryDate: Date,
+    daysUntilExpiry: number,
+    vehicleId: string,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    const formattedExpiryDate = expiryDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    await this.resendService.sendDocumentExpiryWarning(operator.user.email, {
+      operatorName: operator.companyName,
+      documentType,
+      expiryDate: formattedExpiryDate,
+      daysUntilExpiry,
+    });
+
+    await this.logNotification(operator.userId, 'DOCUMENT_EXPIRY_WARNING', `${documentType}:${vehicleId}`);
+    this.logger.log(
+      `Vehicle document expiry warning sent to operator ${operatorId} for ${documentType}`,
+    );
+  }
+
+  /**
+   * Send vehicle document expired notification to operator
+   */
+  async sendVehicleDocumentExpired(
+    operatorId: string,
+    documentType: string,
+    expiredDate: Date,
+    vehicleId: string,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    const formattedExpiredDate = expiredDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    await this.resendService.sendDocumentExpired(operator.user.email, {
+      operatorName: operator.companyName,
+      documentType,
+      expiredDate: formattedExpiredDate,
+    });
+
+    await this.logNotification(operator.userId, 'DOCUMENT_EXPIRED', `${documentType}:${vehicleId}`);
+    this.logger.log(
+      `Vehicle document expired notification sent to operator ${operatorId} for ${documentType}`,
+    );
+  }
+
+  /**
+   * Send vehicle document expiry notification to admin
+   */
+  async sendVehicleDocumentExpiryToAdmin(
+    operatorId: string,
+    documentType: string,
+    expiryDate: Date,
+    vehicleId: string,
+  ): Promise<void> {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      include: { user: true },
+    });
+
+    if (!operator) {
+      this.logger.warn(`Operator not found: ${operatorId}`);
+      return;
+    }
+
+    const adminEmail = await this.systemSettingsService.getSettingOrDefault(
+      'ADMIN_PAYOUT_EMAIL',
+      'admin@example.com',
+    );
+
+    const formattedExpiryDate = expiryDate.toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    await this.resendService.sendDocumentExpiryToAdmin(adminEmail, {
+      operatorName: operator.companyName,
+      operatorEmail: operator.user.email,
+      operatorId,
+      documentType,
+      expiryDate: formattedExpiryDate,
+    });
+
+    this.logger.log(
+      `Admin notified about vehicle document expiry for operator ${operatorId}, vehicle ${vehicleId}`,
+    );
+  }
+
+  // =========================================================================
   // JOURNEY REMINDER NOTIFICATIONS
   // =========================================================================
 

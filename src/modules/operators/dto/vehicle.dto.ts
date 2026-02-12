@@ -9,11 +9,13 @@ export const CreateVehicleSchema = z.object({
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1),
   color: z.string().min(1).optional(),
   logbookUrl: z.string().optional(),
+  logbookExpiryDate: z.string().datetime().optional(),
   motCertificateUrl: z.string().optional(),
   motExpiryDate: z.string().datetime().optional(),
   insuranceDocumentUrl: z.string().optional(),
   insuranceExpiryDate: z.string().datetime().optional(),
   hirePermissionLetterUrl: z.string().optional(),
+  hirePermissionLetterExpiryDate: z.string().datetime().optional(),
   driverId: z.string().optional(),
 });
 
@@ -25,11 +27,13 @@ export const UpdateVehicleSchema = z.object({
   year: z.number().int().min(1900).max(new Date().getFullYear() + 1).optional(),
   color: z.string().min(1).optional(),
   logbookUrl: z.string().optional(),
+  logbookExpiryDate: z.string().datetime().optional(),
   motCertificateUrl: z.string().optional(),
   motExpiryDate: z.string().datetime().optional(),
   insuranceDocumentUrl: z.string().optional(),
   insuranceExpiryDate: z.string().datetime().optional(),
   hirePermissionLetterUrl: z.string().optional(),
+  hirePermissionLetterExpiryDate: z.string().datetime().optional(),
   isActive: z.boolean().optional(),
 });
 

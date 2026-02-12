@@ -74,12 +74,14 @@ model Vehicle {
   model                 String
   year                  Int
   color                 String?
-  logbookUrl            String?
-  motCertificateUrl     String?
-  motExpiryDate         DateTime?
-  insuranceDocumentUrl  String?
-  insuranceExpiryDate   DateTime?
-  hirePermissionLetterUrl String?
+  logbookUrl                  String?
+  logbookExpiryDate           DateTime?
+  motCertificateUrl           String?
+  motExpiryDate               DateTime?
+  insuranceDocumentUrl        String?
+  insuranceExpiryDate         DateTime?
+  hirePermissionLetterUrl     String?
+  hirePermissionLetterExpiryDate DateTime?
   isApproved            Boolean         @default(false)
   isActive              Boolean         @default(true)
   createdAt             DateTime        @default(now())
