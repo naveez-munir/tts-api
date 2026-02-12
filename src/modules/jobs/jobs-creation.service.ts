@@ -112,6 +112,7 @@ export class JobsCreationService {
 
     await this.notificationsService.broadcastNewJob({
       jobId,
+      bookingReference: booking.bookingReference,
       pickupAddress: booking.pickupAddress,
       pickupPostcode: booking.pickupPostcode || 'N/A',
       dropoffAddress: booking.dropoffAddress,

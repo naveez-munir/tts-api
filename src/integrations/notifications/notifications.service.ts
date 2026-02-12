@@ -60,6 +60,7 @@ export interface JobBroadcastStop {
 
 export interface JobBroadcastData {
   jobId: string;
+  bookingReference: string;
   pickupAddress: string;
   pickupPostcode: string;
   dropoffAddress: string;
@@ -315,6 +316,25 @@ export class NotificationsService {
 
       await this.logNotification(operator.userId, 'NEW_JOB_ALERT', data.jobId);
     }
+
+    // Notify admin about the new job
+    const adminEmail = await this.systemSettingsService.getSettingOrDefault(
+      'ADMIN_PAYOUT_EMAIL',
+      'admin@example.com',
+    );
+
+    await this.resendService.sendNewJobToAdmin(adminEmail, {
+      jobId: data.jobId,
+      bookingReference: data.bookingReference,
+      pickupAddress: data.pickupAddress,
+      dropoffAddress: data.dropoffAddress,
+      pickupDatetime: formattedDatetime,
+      vehicleType: data.vehicleType,
+      maxBidAmount: data.maxBidAmount,
+      operatorCount: data.operatorIds.length,
+    });
+
+    this.logger.log(`Admin notified about new job: ${data.jobId}`);
   }
 
   /**

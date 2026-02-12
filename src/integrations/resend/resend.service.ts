@@ -138,6 +138,17 @@ export interface OperatorWelcomeData {
 }
 
 // Admin Notification Interfaces
+export interface AdminNewJobData {
+  jobId: string;
+  bookingReference: string;
+  pickupAddress: string;
+  dropoffAddress: string;
+  pickupDatetime: string;
+  vehicleType: string;
+  maxBidAmount: string;
+  operatorCount: number;
+}
+
 export interface NewOperatorRegistrationData {
   companyName: string;
   contactName: string;
@@ -543,6 +554,19 @@ export class ResendService {
     return this.sendEmail({
       to: email,
       subject: `New Operator Registration: ${data.companyName}`,
+      html,
+    });
+  }
+
+  /**
+   * Send new job notification to admin
+   */
+  async sendNewJobToAdmin(email: string, data: AdminNewJobData): Promise<boolean> {
+    const html = this.getAdminNewJobHtml(data);
+
+    return this.sendEmail({
+      to: email,
+      subject: `New Job Created: ${data.bookingReference}`,
       html,
     });
   }
@@ -2072,6 +2096,78 @@ export class ResendService {
                       <a href="${frontendUrl}/operator/profile" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">Complete Your Profile</a>
                     </div>
                     <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0;">Best regards,<br><strong>Customer Support</strong></p>
+                  </td>
+                </tr>
+                ${this.getEmailFooter()}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </body>
+      </html>
+    `;
+  }
+
+  private getAdminNewJobHtml(data: AdminNewJobData): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+
+    return `
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>New Job Created</title>
+      </head>
+      <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f8fafc;">
+          <tr>
+            <td align="center" style="padding: 40px 0;">
+              <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff;">
+                <tr>
+                  <td style="background-color: #0D9488; padding: 40px 30px; text-align: center;">
+                    <h1 style="color: #ffffff; font-size: 28px; margin: 0; font-weight: 600;">New Job Created</h1>
+                    <p style="color: #ccfbf1; margin: 10px 0 0 0; font-size: 16px;">A new booking has been paid and a job is now live</p>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 40px 30px;">
+                    <p style="color: #334155; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">A new job has been created and broadcast to <strong>${data.operatorCount} operator(s)</strong>.</p>
+                    <div style="background-color: #f0fdfa; border: 2px solid #0D9488; border-radius: 12px; padding: 25px; margin: 0 0 25px 0;">
+                      <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 160px;">Booking Reference:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.bookingReference}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Pickup:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.pickupAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Dropoff:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.dropoffAddress}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Pickup Time:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.pickupDatetime}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Vehicle Type:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.vehicleType}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Max Bid Amount:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.maxBidAmount}</td>
+                        </tr>
+                        <tr>
+                          <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Operators Notified:</td>
+                          <td style="padding: 8px 0; color: #1e293b; font-size: 14px; font-weight: 600;">${data.operatorCount}</td>
+                        </tr>
+                      </table>
+                    </div>
+                    <div style="text-align: center; margin: 0 0 30px 0;">
+                      <a href="${frontendUrl}/admin/jobs/${data.jobId}" style="display: inline-block; background-color: #0D9488; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: bold; font-size: 16px;">View Job</a>
+                    </div>
                   </td>
                 </tr>
                 ${this.getEmailFooter()}
