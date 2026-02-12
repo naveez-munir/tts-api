@@ -475,4 +475,86 @@ export class JobsController {
       message: 'Job marked as completed',
     };
   }
+
+  /**
+   * POST /jobs/:id/rate
+   * Submit customer rating for a completed job
+   */
+  @Post(':id/rate')
+  @HttpCode(HttpStatus.OK)
+  async rateJob(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @Body() body: { rating: number },
+  ) {
+    if (user.role !== 'CUSTOMER') {
+      throw new BadRequestException('Only customers can rate jobs');
+    }
+
+    // Validate rating (1-5)
+    if (!body.rating || body.rating < 1 || body.rating > 5) {
+      throw new BadRequestException('Rating must be between 1 and 5');
+    }
+
+    const job = await this.prisma.job.findUnique({
+      where: { id },
+      include: {
+        booking: true,
+        assignedOperator: true,
+      },
+    });
+
+    if (!job) {
+      throw new NotFoundException('Job not found');
+    }
+
+    // Verify this customer owns the job
+    if (job.booking.customerId !== user.id) {
+      throw new BadRequestException('You can only rate your own jobs');
+    }
+
+    // Verify job is completed
+    if (job.status !== JobStatus.COMPLETED) {
+      throw new BadRequestException('Can only rate completed jobs');
+    }
+
+    // Check if already rated
+    if (job.customerRating) {
+      throw new BadRequestException('Job has already been rated');
+    }
+
+    // Update job with rating
+    const updatedJob = await this.prisma.job.update({
+      where: { id },
+      data: { customerRating: body.rating },
+    });
+
+    // Update operator reputation score
+    if (job.assignedOperatorId) {
+      const operator = await this.prisma.operatorProfile.findUnique({
+        where: { id: job.assignedOperatorId },
+        select: { reputationScore: true },
+      });
+
+      if (operator) {
+        const currentScore = Number(operator.reputationScore);
+        const newScore = (currentScore + body.rating) / 2;
+
+        await this.prisma.operatorProfile.update({
+          where: { id: job.assignedOperatorId },
+          data: { reputationScore: newScore },
+        });
+
+        this.logger.log(
+          `Updated operator ${job.assignedOperatorId} reputation: ${currentScore.toFixed(2)} → ${newScore.toFixed(2)} (customer rating: ${body.rating})`
+        );
+      }
+    }
+
+    return {
+      success: true,
+      data: updatedJob,
+      message: 'Rating submitted successfully',
+    };
+  }
 }

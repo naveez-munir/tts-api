@@ -308,6 +308,7 @@ model Job {
   payoutTransactionId        String?
   platformMargin             Decimal?         @db.Decimal(10, 2)
   winningBidId               String?          @unique
+  customerRating             Int?
   bids                       Bid[]            @relation("JobBids")
   driverDetails              DriverDetails?
   assignedOperator           OperatorProfile? @relation("AssignedOperator", fields: [assignedOperatorId], references: [id])
