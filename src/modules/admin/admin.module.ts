@@ -8,9 +8,19 @@ import { S3Module } from '../../integrations/s3/s3.module.js';
 import { NotificationsModule } from '../../integrations/notifications/notifications.module.js';
 import { PayoutsModule } from '../payouts/payouts.module.js';
 import { OperatorsModule } from '../operators/operators.module.js';
+import { AuditModule } from '../audit/audit.module.js';
 
 @Module({
-  imports: [StripeModule, SystemSettingsModule, BiddingQueueModule, S3Module, NotificationsModule, PayoutsModule, OperatorsModule],
+  imports: [
+    StripeModule,
+    SystemSettingsModule,
+    BiddingQueueModule,
+    S3Module,
+    NotificationsModule,
+    PayoutsModule,
+    OperatorsModule,
+    AuditModule,
+  ],
   controllers: [AdminController],
   providers: [AdminService],
   exports: [AdminService],

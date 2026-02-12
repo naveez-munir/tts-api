@@ -7,18 +7,20 @@ import { JwtService } from '@nestjs/jwt';
 import { UsersService } from '../users/users.service.js';
 import { OtpService } from './otp.service.js';
 import { ResendService } from '../integrations/resend/resend.service.js';
+import { PrismaService } from '../database/prisma.service.js';
 import * as bcrypt from 'bcrypt';
-import type { User } from '@prisma/client';
+import { User, ControllerPermission, UserRole } from '@prisma/client';
 
 interface JwtPayload {
   email: string;
   sub: string;
   role: string;
+  permissions?: string[];
 }
 
 export interface AuthResponse {
   access_token: string;
-  user: Omit<User, 'password'>;
+  user: Omit<User, 'password'> & { permissions?: ControllerPermission[] };
 }
 
 @Injectable()
@@ -28,6 +30,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly otpService: OtpService,
     private readonly resendService: ResendService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async validateUser(
@@ -45,17 +48,31 @@ export class AuthService {
   }
 
   async login(user: User): Promise<AuthResponse> {
+    const { password: _, ...userWithoutPassword } = user;
+
+    let permissions: ControllerPermission[] | undefined;
+
+    if (user.role === UserRole.CONTROLLER) {
+      const userPermissions = await this.prisma.userPermission.findMany({
+        where: { userId: user.id },
+        select: { permission: true },
+      });
+      permissions = userPermissions.map((p) => p.permission);
+    }
+
     const payload: JwtPayload = {
       email: user.email,
       sub: user.id,
       role: user.role,
+      permissions: permissions,
     };
-
-    const { password: _, ...userWithoutPassword } = user;
 
     return {
       access_token: this.jwtService.sign(payload),
-      user: userWithoutPassword,
+      user: {
+        ...userWithoutPassword,
+        permissions,
+      },
     };
   }
 

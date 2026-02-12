@@ -24,7 +24,10 @@ import type { ManualJobAssignmentDto } from './dto/job-assignment.dto.js';
 import type { ReportsQueryDto } from './dto/reports-query.dto.js';
 import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto } from './dto/customer-management.dto.js';
 import type { UpdateVehicleCapacityDto } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
-import { VehicleType } from '@prisma/client';
+import { VehicleType, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import type { CreateControllerDto } from './dto/create-controller.dto.js';
+import type { UpdatePermissionsDto } from './dto/update-permissions.dto.js';
 
 @Injectable()
 export class AdminService {
@@ -45,7 +48,7 @@ export class AdminService {
   // DASHBOARD
   // =========================================================================
 
-  async getDashboard() {
+  async getDashboard(userRole: UserRole = UserRole.ADMIN) {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const thisWeekStart = new Date(now);
@@ -359,8 +362,54 @@ export class AdminService {
     const totalCompletedRefunds = Number(completedRefunds._sum.amount) || 0;
     const netProfit = totalRevenueAmount - totalPayoutsCompleted - totalPendingPayouts - totalCompletedRefunds;
 
+    // === ROLE-BASED RESPONSE FILTERING ===
+    // Controllers should not see financial data (revenue, payouts, net profit)
+    const isController = userRole === UserRole.CONTROLLER;
+
+    // KPIs (visible to both ADMIN and CONTROLLER)
+    const kpis = {
+      totalBookings,
+      activeOperators,
+      pendingOperatorApprovals: pendingApprovals,
+      suspendedOperators,
+      rejectedOperators,
+      activeJobs,
+      jobsWithNoBids,
+      jobsBiddingClosed,
+      jobsStartingSoon,
+      overdueJobs,
+    };
+
+    // Filter alerts for Controllers - exclude payout-related alerts
+    const filteredAlerts = isController
+      ? alerts.filter((alert) => alert.type !== 'PENDING_PAYOUTS')
+      : alerts;
+
+    // Base response for both roles
+    const baseResponse = {
+      kpis,
+      bookingStatusBreakdown: statusBreakdown,
+      recentActivity,
+      alerts: filteredAlerts,
+    };
+
+    // CONTROLLER: Return limited dashboard (no financial data)
+    if (isController) {
+      return {
+        ...baseResponse,
+        // Analytics without revenue
+        analytics: {
+          today: { bookings: todayBookings },
+          thisWeek: { bookings: weekBookings },
+          thisMonth: { bookings: monthBookings },
+        },
+      };
+    }
+
+    // ADMIN: Return full dashboard with financial data
     return {
-      // Financial Overview
+      ...baseResponse,
+      // Financial Overview (ADMIN only)
       financialOverview: {
         totalRevenue: totalRevenueAmount,
         operatorPayoutsCompleted: totalPayoutsCompleted,
@@ -369,22 +418,7 @@ export class AdminService {
         totalPendingPayoutsDue: totalPendingPayouts,
         totalEligiblePayouts,
       },
-
-      // KPIs
-      kpis: {
-        totalBookings,
-        activeOperators,
-        pendingOperatorApprovals: pendingApprovals,
-        suspendedOperators,
-        rejectedOperators,
-        activeJobs,
-        jobsWithNoBids,
-        jobsBiddingClosed,
-        jobsStartingSoon,
-        overdueJobs,
-      },
-
-      // Time-based Analytics
+      // Time-based Analytics with revenue (ADMIN only)
       analytics: {
         today: {
           bookings: todayBookings,
@@ -399,33 +433,21 @@ export class AdminService {
           revenue: Number(monthRevenue._sum.amount) || 0,
         },
       },
-
-      // Booking Status Breakdown
-      bookingStatusBreakdown: statusBreakdown,
-
-      // Revenue by Vehicle Type (for charts)
+      // Revenue by Vehicle Type (ADMIN only)
       revenueByVehicleType: revenueByVehicleType.map((item) => ({
         vehicleType: item.vehicleType,
         totalRevenue: Number(item._sum.customerPrice) || 0,
         bookingCount: item._count.id,
       })),
-
-      // Revenue Trend (for line chart)
+      // Revenue Trend (ADMIN only)
       revenueTrend,
-
-      // Pending Payouts by Operator
+      // Pending Payouts by Operator (ADMIN only)
       pendingPayouts: {
         totalAmount: totalPendingPayouts,
         totalEligible: totalEligiblePayouts,
         jobCount: totalPendingPayoutsJobCount,
         byOperator: pendingPayoutsByOperator,
       },
-
-      // Recent Activity
-      recentActivity,
-
-      // Alerts
-      alerts,
     };
   }
 
@@ -2535,6 +2557,236 @@ export class AdminService {
     });
 
     return updated;
+  }
+
+  async createController(dto: CreateControllerDto, adminId: string) {
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    const controller = await this.prisma.user.create({
+      data: {
+        email: dto.email,
+        password: hashedPassword,
+        firstName: dto.firstName,
+        lastName: dto.lastName,
+        phoneNumber: dto.phoneNumber,
+        role: UserRole.CONTROLLER,
+        isEmailVerified: true,
+        isActive: true,
+      },
+    });
+
+    await this.prisma.userPermission.createMany({
+      data: dto.permissions.map((permission) => ({
+        userId: controller.id,
+        permission,
+        grantedBy: adminId,
+      })),
+    });
+
+    return this.prisma.user.findUnique({
+      where: { id: controller.id },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        permissions: {
+          select: {
+            permission: true,
+            grantedAt: true,
+          },
+        },
+      },
+    });
+  }
+
+  async listControllers(
+    page: number = 1,
+    limit: number = 20,
+    search?: string,
+    isActive?: boolean,
+  ) {
+    const skip = (page - 1) * limit;
+
+    // Build where clause with optional filters
+    const whereClause: any = { role: UserRole.CONTROLLER };
+
+    if (search) {
+      whereClause.OR = [
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { email: { contains: search, mode: 'insensitive' } },
+      ];
+    }
+
+    if (isActive !== undefined) {
+      whereClause.isActive = isActive;
+    }
+
+    const [controllers, total] = await Promise.all([
+      this.prisma.user.findMany({
+        where: whereClause,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          lastName: true,
+          phoneNumber: true,
+          isActive: true,
+          createdAt: true,
+          permissions: {
+            select: {
+              permission: true,
+            },
+          },
+        },
+      }),
+      this.prisma.user.count({ where: whereClause }),
+    ]);
+
+    return {
+      controllers,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
+  }
+
+  async getControllerById(id: string) {
+    const controller = await this.prisma.user.findUnique({
+      where: { id, role: UserRole.CONTROLLER },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        phoneNumber: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        updatedAt: true,
+        permissions: {
+          select: {
+            permission: true,
+            grantedAt: true,
+            granter: {
+              select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!controller) {
+      throw new NotFoundException('Controller not found');
+    }
+
+    return controller;
+  }
+
+  async updateControllerPermissions(
+    controllerId: string,
+    dto: UpdatePermissionsDto,
+    adminId: string,
+  ) {
+    const controller = await this.prisma.user.findUnique({
+      where: { id: controllerId, role: UserRole.CONTROLLER },
+    });
+
+    if (!controller) {
+      throw new NotFoundException('Controller not found');
+    }
+
+    await this.prisma.userPermission.deleteMany({
+      where: { userId: controllerId },
+    });
+
+    await this.prisma.userPermission.createMany({
+      data: dto.permissions.map((permission) => ({
+        userId: controllerId,
+        permission,
+        grantedBy: adminId,
+      })),
+    });
+
+    return this.getControllerById(controllerId);
+  }
+
+  async updateControllerStatus(controllerId: string, isActive: boolean) {
+    const controller = await this.prisma.user.findUnique({
+      where: { id: controllerId, role: UserRole.CONTROLLER },
+    });
+
+    if (!controller) {
+      throw new NotFoundException('Controller not found');
+    }
+
+    return this.prisma.user.update({
+      where: { id: controllerId },
+      data: { isActive },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        isActive: true,
+        updatedAt: true,
+      },
+    });
+  }
+
+  async getControllerActivity(controllerId: string, page: number = 1, limit: number = 20) {
+    const controller = await this.prisma.user.findUnique({
+      where: { id: controllerId, role: UserRole.CONTROLLER },
+    });
+
+    if (!controller) {
+      throw new NotFoundException('Controller not found');
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [logs, total] = await Promise.all([
+      this.prisma.auditLog.findMany({
+        where: { userId: controllerId },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.auditLog.count({ where: { userId: controllerId } }),
+    ]);
+
+    return {
+      logs,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    };
   }
 }
 
