@@ -29,7 +29,7 @@ const ALLOWED_MIME_TYPES: Record<AllowedFileType, string> = {
   png: 'image/png',
 };
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
 
 @Injectable()
 export class S3Service {
