@@ -9,6 +9,7 @@ import { NotificationsModule } from '../../integrations/notifications/notificati
 import { PayoutsModule } from '../payouts/payouts.module.js';
 import { OperatorsModule } from '../operators/operators.module.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { BookingsModule } from '../bookings/bookings.module.js';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { AuditModule } from '../audit/audit.module.js';
     PayoutsModule,
     OperatorsModule,
     AuditModule,
+    BookingsModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

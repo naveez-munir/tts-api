@@ -32,3 +32,15 @@ export const CustomerTransactionsQuerySchema = z.object({
 
 export type CustomerTransactionsQueryDto = z.infer<typeof CustomerTransactionsQuerySchema>;
 
+export const AddNoteSchema = z.object({
+  content: z.string().min(1).max(2000),
+});
+
+export type AddNoteDto = z.infer<typeof AddNoteSchema>;
+
+export const EditNoteSchema = z.object({
+  content: z.string().min(1).max(2000),
+});
+
+export type EditNoteDto = z.infer<typeof EditNoteSchema>;
+

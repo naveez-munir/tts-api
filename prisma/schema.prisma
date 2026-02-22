@@ -27,6 +27,8 @@ model User {
   permissions        UserPermission[]
   grantedPermissions UserPermission[] @relation("GrantedPermissions")
   auditLogs          AuditLog[]
+  notesCreated       AdminNote[]      @relation("NoteCreator")
+  customerNotes      AdminNote[]      @relation("CustomerNotes")
 
   @@map("users")
 }
@@ -62,6 +64,7 @@ model OperatorProfile {
   user                   User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   serviceAreas           ServiceArea[]
   vehicles               Vehicle[]
+  adminNotes             AdminNote[]
 
   @@index([approvalStatus])
   @@index([userId])
@@ -499,6 +502,26 @@ model UserPermission {
   @@map("user_permissions")
 }
 
+model AdminNote {
+  id               String              @id @default(cuid())
+  content          String
+  targetType       AdminNoteTargetType
+  targetUserId     String?
+  targetOperatorId String?
+  createdById      String
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  createdBy      User             @relation("NoteCreator", fields: [createdById], references: [id])
+  targetUser     User?            @relation("CustomerNotes", fields: [targetUserId], references: [id], onDelete: Cascade)
+  targetOperator OperatorProfile? @relation(fields: [targetOperatorId], references: [id], onDelete: Cascade)
+
+  @@index([targetUserId])
+  @@index([targetOperatorId])
+  @@index([createdById])
+  @@map("admin_notes")
+}
+
 model AuditLog {
   id            String      @id @default(cuid())
   userId        String
@@ -539,6 +562,7 @@ enum ControllerPermission {
 
   BOOKING_VIEW
   BOOKING_REFUND
+  BOOKING_CREATE
 
   JOB_VIEW
   JOB_ASSIGN
@@ -562,6 +586,11 @@ enum ControllerPermission {
   CUSTOMER_VIEW_BOOKINGS
   CUSTOMER_VIEW_TRANSACTIONS_LIMITED
   CUSTOMER_UPDATE_STATUS
+  CUSTOMER_ADD_NOTE
+  CUSTOMER_EDIT_NOTE
+
+  OPERATOR_ADD_NOTE
+  OPERATOR_EDIT_NOTE
 }
 
 enum BookingStatus {
@@ -684,6 +713,11 @@ enum OtpType {
   EMAIL_VERIFICATION
 }
 
+enum AdminNoteTargetType {
+  CUSTOMER
+  OPERATOR
+}
+
 enum AuditAction {
   OPERATOR_APPROVED
   OPERATOR_REJECTED
@@ -692,6 +726,7 @@ enum AuditAction {
 
   BOOKING_VIEWED
   BOOKING_REFUNDED
+  BOOKING_CREATED
 
   JOB_VIEWED
   JOB_ASSIGNED
@@ -705,9 +740,15 @@ enum AuditAction {
 
   VEHICLE_APPROVED
   VEHICLE_REJECTED
+  VEHICLE_CAPACITY_UPDATED
 
   CUSTOMER_ACTIVATED
   CUSTOMER_DEACTIVATED
+  CUSTOMER_NOTE_ADDED
+  CUSTOMER_NOTE_UPDATED
+
+  OPERATOR_NOTE_ADDED
+  OPERATOR_NOTE_UPDATED
 
   CONTROLLER_CREATED
   CONTROLLER_PERMISSIONS_UPDATED

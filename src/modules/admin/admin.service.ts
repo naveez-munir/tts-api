@@ -7,6 +7,7 @@ import { S3Service } from '../../integrations/s3/s3.service.js';
 import { NotificationsService } from '../../integrations/notifications/notifications.service.js';
 import { PayoutsService } from '../payouts/payouts.service.js';
 import { OperatorsService } from '../operators/operators.service.js';
+import { BookingsService } from '../bookings/bookings.service.js';
 import {
   JobStatus,
   BidStatus,
@@ -20,9 +21,10 @@ import {
 import type { OperatorApprovalDto, ListOperatorsQueryDto } from './dto/operator-approval.dto.js';
 import type { CreatePricingRuleDto, UpdatePricingRuleDto } from './dto/pricing-rule.dto.js';
 import type { ListBookingsQueryDto, ListJobsQueryDto, RefundBookingDto } from './dto/admin-booking.dto.js';
+import type { CreateBookingDto, CreateReturnBookingDto } from '../bookings/dto/create-booking.dto.js';
 import type { ManualJobAssignmentDto } from './dto/job-assignment.dto.js';
 import type { ReportsQueryDto } from './dto/reports-query.dto.js';
-import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto } from './dto/customer-management.dto.js';
+import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto, AddNoteDto, EditNoteDto } from './dto/customer-management.dto.js';
 import type { UpdateVehicleCapacityDto } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
 import { VehicleType, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
@@ -42,6 +44,7 @@ export class AdminService {
     private readonly notificationsService: NotificationsService,
     private readonly payoutsService: PayoutsService,
     private readonly operatorsService: OperatorsService,
+    private readonly bookingsService: BookingsService,
   ) {}
 
   // =========================================================================
@@ -751,6 +754,12 @@ export class AdminService {
         drivers: {
           orderBy: { createdAt: 'desc' },
         },
+        adminNotes: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+          },
+        },
       },
     });
 
@@ -866,6 +875,13 @@ export class AdminService {
       vehicles: vehiclesWithUrls,
       drivers: driversWithUrls,
       stats: operatorStats,
+      notes: operator.adminNotes.map((note) => ({
+        id: note.id,
+        content: note.content,
+        createdBy: note.createdBy,
+        createdAt: note.createdAt.toISOString(),
+        updatedAt: note.updatedAt.toISOString(),
+      })),
     };
   }
 
@@ -1025,6 +1041,12 @@ export class AdminService {
         isEmailVerified: true,
         createdAt: true,
         updatedAt: true,
+        customerNotes: {
+          orderBy: { createdAt: 'desc' },
+          include: {
+            createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+          },
+        },
       },
     });
 
@@ -1104,6 +1126,13 @@ export class AdminService {
         vehicleType: b.vehicleType,
         journeyType: b.journeyType,
         createdAt: b.createdAt.toISOString(),
+      })),
+      notes: customer.customerNotes.map((note) => ({
+        id: note.id,
+        content: note.content,
+        createdBy: note.createdBy,
+        createdAt: note.createdAt.toISOString(),
+        updatedAt: note.updatedAt.toISOString(),
       })),
     };
   }
@@ -1411,6 +1440,32 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async createBookingForCustomer(customerId: string, dto: CreateBookingDto) {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: { id: true, role: true },
+    });
+
+    if (!customer || customer.role !== 'CUSTOMER') {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return this.bookingsService.create(customerId, dto);
+  }
+
+  async createReturnBookingForCustomer(customerId: string, dto: CreateReturnBookingDto) {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: { id: true, role: true },
+    });
+
+    if (!customer || customer.role !== 'CUSTOMER') {
+      throw new NotFoundException('Customer not found');
+    }
+
+    return this.bookingsService.createReturnJourney(customerId, dto);
   }
 
   async refundBooking(bookingId: string, dto: RefundBookingDto) {
@@ -2787,6 +2842,148 @@ export class AdminService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async addCustomerNote(customerId: string, dto: AddNoteDto, createdById: string) {
+    const customer = await this.prisma.user.findUnique({
+      where: { id: customerId },
+      select: { id: true, role: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Customer not found');
+    }
+
+    if (customer.role !== 'CUSTOMER') {
+      throw new BadRequestException('User is not a customer');
+    }
+
+    const note = await this.prisma.adminNote.create({
+      data: {
+        content: dto.content,
+        targetType: 'CUSTOMER',
+        targetUserId: customerId,
+        createdById,
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      },
+    });
+
+    return {
+      id: note.id,
+      content: note.content,
+      createdBy: note.createdBy,
+      createdAt: note.createdAt.toISOString(),
+      updatedAt: note.updatedAt.toISOString(),
+    };
+  }
+
+  async editCustomerNote(customerId: string, noteId: string, dto: EditNoteDto) {
+    const note = await this.prisma.adminNote.findUnique({
+      where: { id: noteId },
+    });
+
+    if (!note || note.targetUserId !== customerId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    const updated = await this.prisma.adminNote.update({
+      where: { id: noteId },
+      data: { content: dto.content },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      },
+    });
+
+    return {
+      id: updated.id,
+      content: updated.content,
+      createdBy: updated.createdBy,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  async addOperatorNote(operatorId: string, dto: AddNoteDto, createdById: string) {
+    const operator = await this.prisma.operatorProfile.findUnique({
+      where: { id: operatorId },
+      select: { id: true },
+    });
+
+    if (!operator) {
+      throw new NotFoundException('Operator not found');
+    }
+
+    const note = await this.prisma.adminNote.create({
+      data: {
+        content: dto.content,
+        targetType: 'OPERATOR',
+        targetOperatorId: operatorId,
+        createdById,
+      },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      },
+    });
+
+    return {
+      id: note.id,
+      content: note.content,
+      createdBy: note.createdBy,
+      createdAt: note.createdAt.toISOString(),
+      updatedAt: note.updatedAt.toISOString(),
+    };
+  }
+
+  async editOperatorNote(operatorId: string, noteId: string, dto: EditNoteDto) {
+    const note = await this.prisma.adminNote.findUnique({
+      where: { id: noteId },
+    });
+
+    if (!note || note.targetOperatorId !== operatorId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    const updated = await this.prisma.adminNote.update({
+      where: { id: noteId },
+      data: { content: dto.content },
+      include: {
+        createdBy: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+      },
+    });
+
+    return {
+      id: updated.id,
+      content: updated.content,
+      createdBy: updated.createdBy,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+  }
+
+  async deleteCustomerNote(customerId: string, noteId: string) {
+    const note = await this.prisma.adminNote.findUnique({
+      where: { id: noteId },
+    });
+
+    if (!note || note.targetUserId !== customerId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    await this.prisma.adminNote.delete({ where: { id: noteId } });
+  }
+
+  async deleteOperatorNote(operatorId: string, noteId: string) {
+    const note = await this.prisma.adminNote.findUnique({
+      where: { id: noteId },
+    });
+
+    if (!note || note.targetOperatorId !== operatorId) {
+      throw new NotFoundException('Note not found');
+    }
+
+    await this.prisma.adminNote.delete({ where: { id: noteId } });
   }
 }
 

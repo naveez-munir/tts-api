@@ -34,8 +34,8 @@ import { ReportsQuerySchema } from './dto/reports-query.dto.js';
 import type { ReportsQueryDto } from './dto/reports-query.dto.js';
 import { UpdateSystemSettingSchema, BulkUpdateSettingsSchema } from './dto/system-settings.dto.js';
 import type { UpdateSystemSettingDto, BulkUpdateSettingsDto } from './dto/system-settings.dto.js';
-import { ListCustomersQuerySchema, UpdateCustomerStatusSchema, CustomerTransactionsQuerySchema } from './dto/customer-management.dto.js';
-import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto } from './dto/customer-management.dto.js';
+import { ListCustomersQuerySchema, UpdateCustomerStatusSchema, CustomerTransactionsQuerySchema, AddNoteSchema, EditNoteSchema } from './dto/customer-management.dto.js';
+import type { ListCustomersQueryDto, UpdateCustomerStatusDto, CustomerTransactionsQueryDto, AddNoteDto, EditNoteDto } from './dto/customer-management.dto.js';
 import { UpdateVehicleCapacitySchema } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
 import type { UpdateVehicleCapacityDto } from '../vehicle-capacity/dto/vehicle-capacity.dto.js';
 import { VehicleType } from '@prisma/client';
@@ -44,6 +44,8 @@ import type { CreateControllerDto } from './dto/create-controller.dto.js';
 import { UpdatePermissionsSchema } from './dto/update-permissions.dto.js';
 import type { UpdatePermissionsDto } from './dto/update-permissions.dto.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
+import { CreateBookingSchema, CreateReturnBookingSchema } from '../bookings/dto/create-booking.dto.js';
+import type { CreateBookingDto, CreateReturnBookingDto } from '../bookings/dto/create-booking.dto.js';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
@@ -136,6 +138,78 @@ export class AdminController {
     return { success: true, data: documents };
   }
 
+  @Post('operators/:id/notes')
+  @Roles(UserRole.ADMIN, UserRole.CONTROLLER)
+  @Permissions(ControllerPermission.OPERATOR_ADD_NOTE)
+  async addOperatorNote(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AddNoteSchema)) dto: AddNoteDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    const data = await this.adminService.addOperatorNote(id, dto, user.id);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.OPERATOR_NOTE_ADDED,
+      targetType: 'Operator',
+      targetId: id,
+      description: `Note added for operator ${id}`,
+      newValue: { content: dto.content },
+    });
+
+    return { success: true, data };
+  }
+
+  @Patch('operators/:id/notes/:noteId')
+  @Roles(UserRole.ADMIN, UserRole.CONTROLLER)
+  @Permissions(ControllerPermission.OPERATOR_EDIT_NOTE)
+  async editOperatorNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @Body(new ZodValidationPipe(EditNoteSchema)) dto: EditNoteDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    const data = await this.adminService.editOperatorNote(id, noteId, dto);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.OPERATOR_NOTE_UPDATED,
+      targetType: 'Operator',
+      targetId: id,
+      description: `Note updated for operator ${id}`,
+      newValue: { noteId, content: dto.content },
+    });
+
+    return { success: true, data };
+  }
+
+  @Delete('operators/:id/notes/:noteId')
+  @Roles(UserRole.ADMIN)
+  async deleteOperatorNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    await this.adminService.deleteOperatorNote(id, noteId);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.OPERATOR_NOTE_UPDATED,
+      targetType: 'Operator',
+      targetId: id,
+      description: `Note deleted for operator ${id}`,
+      previousValue: { noteId },
+    });
+
+    return { success: true };
+  }
+
   // =========================================================================
   // CUSTOMER MANAGEMENT
   // =========================================================================
@@ -211,6 +285,56 @@ export class AdminController {
     return { success: true, data: { bookings: result.bookings }, meta: result.meta };
   }
 
+  @Post('customers/:id/bookings')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.ADMIN, UserRole.CONTROLLER)
+  @Permissions(ControllerPermission.BOOKING_CREATE)
+  async createBookingForCustomer(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateBookingSchema)) dto: CreateBookingDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    const booking = await this.adminService.createBookingForCustomer(id, dto);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.BOOKING_CREATED,
+      targetType: 'Booking',
+      targetId: booking.id,
+      description: `Booking created for customer ${id} by admin`,
+      newValue: { bookingId: booking.id, customerId: id },
+    });
+
+    return { success: true, data: booking };
+  }
+
+  @Post('customers/:id/bookings/return')
+  @HttpCode(HttpStatus.CREATED)
+  @Roles(UserRole.ADMIN, UserRole.CONTROLLER)
+  @Permissions(ControllerPermission.BOOKING_CREATE)
+  async createReturnBookingForCustomer(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(CreateReturnBookingSchema)) dto: CreateReturnBookingDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    const result = await this.adminService.createReturnBookingForCustomer(id, dto);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.BOOKING_CREATED,
+      targetType: 'BookingGroup',
+      targetId: result.bookingGroup.id,
+      description: `Return journey created for customer ${id} by admin`,
+      newValue: { bookingGroupId: result.bookingGroup.id, customerId: id },
+    });
+
+    return { success: true, data: result };
+  }
+
   /**
    * GET /admin/customers/:id/transactions
    * Get customer transaction history
@@ -224,6 +348,78 @@ export class AdminController {
   ) {
     const result = await this.adminService.getCustomerTransactions(id, query);
     return { success: true, data: { transactions: result.transactions, summary: result.summary }, meta: result.meta };
+  }
+
+  @Post('customers/:id/notes')
+  @Roles(UserRole.ADMIN, UserRole.CONTROLLER)
+  @Permissions(ControllerPermission.CUSTOMER_ADD_NOTE)
+  async addCustomerNote(
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(AddNoteSchema)) dto: AddNoteDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    const data = await this.adminService.addCustomerNote(id, dto, user.id);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.CUSTOMER_NOTE_ADDED,
+      targetType: 'Customer',
+      targetId: id,
+      description: `Note added for customer ${id}`,
+      newValue: { content: dto.content },
+    });
+
+    return { success: true, data };
+  }
+
+  @Patch('customers/:id/notes/:noteId')
+  @Roles(UserRole.ADMIN, UserRole.CONTROLLER)
+  @Permissions(ControllerPermission.CUSTOMER_EDIT_NOTE)
+  async editCustomerNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @Body(new ZodValidationPipe(EditNoteSchema)) dto: EditNoteDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    const data = await this.adminService.editCustomerNote(id, noteId, dto);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.CUSTOMER_NOTE_UPDATED,
+      targetType: 'Customer',
+      targetId: id,
+      description: `Note updated for customer ${id}`,
+      newValue: { noteId, content: dto.content },
+    });
+
+    return { success: true, data };
+  }
+
+  @Delete('customers/:id/notes/:noteId')
+  @Roles(UserRole.ADMIN)
+  async deleteCustomerNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
+  ) {
+    await this.adminService.deleteCustomerNote(id, noteId);
+
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.CUSTOMER_NOTE_UPDATED,
+      targetType: 'Customer',
+      targetId: id,
+      description: `Note deleted for customer ${id}`,
+      previousValue: { noteId },
+    });
+
+    return { success: true };
   }
 
   // =========================================================================
@@ -397,25 +593,23 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   async reopenBidding(
     @Param('jobId') jobId: string,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
     @Query('hours') hours?: string,
-    @CurrentUser() user?: { id: string; email: string; role: UserRole },
   ) {
     const biddingHours = hours ? parseInt(hours, 10) : undefined;
     const data = await this.adminService.reopenBidding(jobId, biddingHours);
 
     // Audit log
-    if (user) {
-      await this.auditService.log({
-        userId: user.id,
-        userEmail: user.email,
-        userRole: user.role,
-        action: AuditAction.JOB_BIDDING_REOPENED,
-        targetType: 'Job',
-        targetId: jobId,
-        description: `Job bidding reopened${biddingHours ? ` for ${biddingHours} hours` : ''}`,
-        newValue: { biddingHours },
-      });
-    }
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.JOB_BIDDING_REOPENED,
+      targetType: 'Job',
+      targetId: jobId,
+      description: `Job bidding reopened${biddingHours ? ` for ${biddingHours} hours` : ''}`,
+      newValue: { biddingHours },
+    });
 
     return { success: true, data };
   }
@@ -450,24 +644,22 @@ export class AdminController {
   @HttpCode(HttpStatus.OK)
   async rejectJobCompletion(
     @Param('jobId') jobId: string,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
     @Query('reason') reason?: string,
-    @CurrentUser() user?: { id: string; email: string; role: UserRole },
   ) {
     const data = await this.adminService.rejectJobCompletion(jobId, reason);
 
     // Audit log
-    if (user) {
-      await this.auditService.log({
-        userId: user.id,
-        userEmail: user.email,
-        userRole: user.role,
-        action: AuditAction.JOB_COMPLETION_REJECTED,
-        targetType: 'Job',
-        targetId: jobId,
-        description: 'Job completion rejected',
-        reason,
-      });
-    }
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.JOB_COMPLETION_REJECTED,
+      targetType: 'Job',
+      targetId: jobId,
+      description: 'Job completion rejected',
+      reason,
+    });
 
     return { success: true, data };
   }
@@ -585,8 +777,22 @@ export class AdminController {
   async updateVehicleCapacity(
     @Param('vehicleType') vehicleType: VehicleType,
     @Body(new ZodValidationPipe(UpdateVehicleCapacitySchema)) dto: UpdateVehicleCapacityDto,
+    @CurrentUser() user: { id: string; email: string; role: UserRole },
   ) {
     const data = await this.adminService.updateVehicleCapacity(vehicleType, dto);
+
+    // Audit log
+    await this.auditService.log({
+      userId: user.id,
+      userEmail: user.email,
+      userRole: user.role,
+      action: AuditAction.VEHICLE_CAPACITY_UPDATED,
+      targetType: 'VehicleCapacity',
+      targetId: vehicleType,
+      description: `Vehicle capacity updated for ${vehicleType}`,
+      newValue: dto,
+    });
+
     return { success: true, data };
   }
 
