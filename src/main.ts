@@ -24,8 +24,9 @@ async function bootstrap() {
   );
 
   // Enable CORS
+  const corsOrigins = (process.env.CORS_ORIGINS || process.env.FRONTEND_URL || 'http://localhost:3000').split(',').map(o => o.trim());
   app.enableCors({
-    origin: (process.env.FRONTEND_URL || 'http://localhost:3000').split(','),
+    origin: corsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
@@ -34,6 +35,6 @@ async function bootstrap() {
   const port = process.env.PORT ?? 4000;
   await app.listen(port);
   console.log(`✅ Server running on http://localhost:${port}`);
-  console.log(`✅ CORS enabled for: ${(process.env.FRONTEND_URL || 'http://localhost:3000').split(',').join(', ')}`);
+  console.log(`✅ CORS enabled for: ${corsOrigins.join(', ')}`);
 }
 bootstrap();
