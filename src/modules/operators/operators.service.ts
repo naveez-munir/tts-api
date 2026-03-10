@@ -638,6 +638,18 @@ export class OperatorsService {
     return activeVehicleCount;
   }
 
+  private extractS3Key(value: string): string {
+    if (!value.startsWith('http')) {
+      return value;
+    }
+    try {
+      const url = new URL(value);
+      return url.pathname.substring(1);
+    } catch {
+      return value;
+    }
+  }
+
   private async generateDriverDocumentUrls(driver: Driver & { vehicle?: any }) {
     const result = { ...driver } as Record<string, unknown>;
     const documentFields = [
@@ -653,12 +665,9 @@ export class OperatorsService {
     for (const field of documentFields) {
       const value = driver[field as keyof Driver];
       if (value && typeof value === 'string') {
-        if (value.startsWith('http')) {
-          result[field] = value;
-        } else {
-          const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
-          result[field] = downloadUrl;
-        }
+        const s3Key = this.extractS3Key(value);
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
+        result[field] = downloadUrl;
       }
     }
 
@@ -670,12 +679,9 @@ export class OperatorsService {
       if (driver.vehicle.photos && Array.isArray(driver.vehicle.photos)) {
         const photosWithUrls = await Promise.all(
           driver.vehicle.photos.map(async (photo: any) => {
-            if (photo.photoUrl.startsWith('http')) {
-              return photo;
-            } else {
-              const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
-              return { ...photo, photoUrl: downloadUrl };
-            }
+            const s3Key = this.extractS3Key(photo.photoUrl);
+            const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
+            return { ...photo, photoUrl: downloadUrl };
           })
         );
         vehicleWithUrls.photos = photosWithUrls;
@@ -699,12 +705,9 @@ export class OperatorsService {
     for (const field of documentFields) {
       const value = vehicle[field as keyof Vehicle];
       if (value && typeof value === 'string') {
-        if (value.startsWith('http')) {
-          result[field] = value;
-        } else {
-          const { downloadUrl } = await this.s3Service.generateDownloadUrl(value);
-          result[field] = downloadUrl;
-        }
+        const s3Key = this.extractS3Key(value);
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
+        result[field] = downloadUrl;
       }
     }
 
@@ -750,10 +753,8 @@ export class OperatorsService {
         const vehicleWithUrls = await this.generateVehicleDocumentUrls(vehicle);
         const photosWithUrls = await Promise.all(
           vehicle.photos.map(async (photo) => {
-            if (photo.photoUrl.startsWith('http')) {
-              return photo;
-            }
-            const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+            const s3Key = this.extractS3Key(photo.photoUrl);
+            const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
             return { ...photo, photoUrl: downloadUrl };
           })
         );
@@ -788,10 +789,8 @@ export class OperatorsService {
 
     const photosWithUrls = await Promise.all(
       vehicle.photos.map(async (photo) => {
-        if (photo.photoUrl.startsWith('http')) {
-          return photo;
-        }
-        const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+        const s3Key = this.extractS3Key(photo.photoUrl);
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
         return { ...photo, photoUrl: downloadUrl };
       })
     );
@@ -1337,10 +1336,8 @@ export class OperatorsService {
 
     return Promise.all(
       vehicle.photos.map(async (photo) => {
-        if (photo.photoUrl.startsWith('http')) {
-          return photo;
-        }
-        const { downloadUrl } = await this.s3Service.generateDownloadUrl(photo.photoUrl);
+        const s3Key = this.extractS3Key(photo.photoUrl);
+        const { downloadUrl } = await this.s3Service.generateDownloadUrl(s3Key);
         return { ...photo, photoUrl: downloadUrl };
       })
     );
