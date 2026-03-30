@@ -16,6 +16,7 @@ export const CreateVehicleSchema = z.object({
   insuranceExpiryDate: z.string().datetime().optional(),
   hirePermissionLetterUrl: z.string().optional(),
   hirePermissionLetterExpiryDate: z.string().datetime().optional(),
+  isOwner: z.boolean().default(true),
   driverId: z.string().optional(),
 });
 
@@ -34,6 +35,7 @@ export const UpdateVehicleSchema = z.object({
   insuranceExpiryDate: z.string().datetime().optional(),
   hirePermissionLetterUrl: z.string().optional(),
   hirePermissionLetterExpiryDate: z.string().datetime().optional(),
+  isOwner: z.boolean().optional(),
   isActive: z.boolean().optional(),
 });
 

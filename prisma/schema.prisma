@@ -88,6 +88,7 @@ model Vehicle {
   insuranceExpiryDate         DateTime?
   hirePermissionLetterUrl     String?
   hirePermissionLetterExpiryDate DateTime?
+  isOwner               Boolean         @default(true)
   isApproved            Boolean         @default(false)
   isActive              Boolean         @default(false)
   createdAt             DateTime        @default(now())

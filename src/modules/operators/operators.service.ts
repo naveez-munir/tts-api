@@ -852,6 +852,7 @@ export class OperatorsService {
           insuranceDocumentUrl: dto.insuranceDocumentUrl,
           insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : null,
           hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
+          isOwner: dto.isOwner ?? true,
           isApproved: false,
           isActive: false,
         },
@@ -930,6 +931,7 @@ export class OperatorsService {
           insuranceDocumentUrl: dto.insuranceDocumentUrl,
           insuranceExpiryDate: dto.insuranceExpiryDate ? new Date(dto.insuranceExpiryDate) : undefined,
           hirePermissionLetterUrl: dto.hirePermissionLetterUrl,
+          isOwner: dto.isOwner,
           isActive: dto.isActive,
         },
       });
