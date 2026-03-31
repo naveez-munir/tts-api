@@ -2572,6 +2572,10 @@ export class AdminService {
       throw new BadRequestException('Cannot approve driver. Operator must be approved first.');
     }
 
+    if (!driver.vehicleId) {
+      throw new BadRequestException('Cannot approve driver. Driver must have a vehicle assigned.');
+    }
+
     const updated = await this.prisma.driver.update({
       where: { id: driverId },
       data: {

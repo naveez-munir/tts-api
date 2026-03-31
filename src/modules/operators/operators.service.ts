@@ -970,6 +970,21 @@ export class OperatorsService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      // Reset linked driver's approval status since their vehicle is being removed
+      const linkedDriver = await tx.driver.findUnique({
+        where: { vehicleId },
+      });
+
+      if (linkedDriver) {
+        await tx.driver.update({
+          where: { id: linkedDriver.id },
+          data: {
+            isApproved: false,
+            isActive: false,
+          },
+        });
+      }
+
       await tx.vehicle.delete({
         where: { id: vehicleId },
       });
