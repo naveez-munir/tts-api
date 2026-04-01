@@ -2576,13 +2576,22 @@ export class AdminService {
       throw new BadRequestException('Cannot approve driver. Driver must have a vehicle assigned.');
     }
 
-    const updated = await this.prisma.driver.update({
-      where: { id: driverId },
-      data: {
-        isApproved: true,
-        isActive: true,
-      },
-    });
+    const [updated] = await this.prisma.$transaction([
+      this.prisma.driver.update({
+        where: { id: driverId },
+        data: {
+          isApproved: true,
+          isActive: true,
+        },
+      }),
+      this.prisma.vehicle.update({
+        where: { id: driver.vehicleId },
+        data: {
+          isApproved: true,
+          isActive: true,
+        },
+      }),
+    ]);
 
     return updated;
   }

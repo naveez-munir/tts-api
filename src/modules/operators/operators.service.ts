@@ -1255,6 +1255,7 @@ export class OperatorsService {
           issuingCouncil: dto.issuingCouncil,
           badgeNumber: dto.badgeNumber,
           isActive: dto.isActive,
+          isApproved: isBeingDeactivated ? false : undefined,
           vehicle: dto.vehicleId !== undefined
             ? dto.vehicleId
               ? { connect: { id: dto.vehicleId } }
@@ -1276,7 +1277,10 @@ export class OperatorsService {
         // Deactivate/reactivate the linked vehicle along with the driver
         await tx.vehicle.update({
           where: { id: driver.vehicleId },
-          data: { isActive: !isBeingDeactivated },
+          data: {
+            isActive: !isBeingDeactivated,
+            isApproved: isBeingDeactivated ? false : undefined,
+          },
         });
 
         // Update fleet size using centralized method
